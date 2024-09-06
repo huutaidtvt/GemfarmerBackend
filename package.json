@@ -1,0 +1,55 @@
+{
+  "name": "GemLogin",
+  "version": "1.0.10",
+  "description": "Gemlogin automation",
+  "main": "main.js",
+  "author": "GemLogin.App",
+  "scripts": {
+    "start": "electron .",
+    "pakage": "build",
+    "pack": "electron-builder --windows",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.14",
+    "crypto": "^1.0.1",
+    "electron-builder-squirrel-windows": "^24.13.3",
+    "md5": "^2.3.0",
+    "mkdirp": "^3.0.1",
+    "node-fetch": "^2.7.0",
+    "nodejs-file-downloader": "^4.13.0",
+    "os-paths": "^7.4.0",
+    "sequelize": "^6.37.3",
+    "sqlite3": "5.1.6",
+    "systeminformation": "^5.23.5",
+    "ws": "^8.18.0",
+    "xlsx-populate": "^1.21.0"
+  },
+  "build": {
+    "productName": "gemLogin",
+    "extraFiles": [
+      {
+        "from": "D:/genlogin/bin",
+        "to": "bin/",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "logo.png"
+    },
+    "files": [
+      "**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^32.0.1",
+    "electron-builder": "^24.13.3",
+    "electron-reloader": "^1.2.3"
+  }
+}
