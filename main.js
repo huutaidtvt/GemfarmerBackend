@@ -6,7 +6,7 @@ var splashWindow = null;
 var mainWindow = null;
 let deviceValid;
 let deviceCode;
-const pathWeb = path.join("D:\\genlogin\\farmer\\gemfarmer", "build");
+const pathWeb = path.join("D:\\Electron\\gemfarmer", "build");
 const pathPreload = path.join(__dirname, 'preload.js');
 const osPaths = require('os-paths/cjs');
 const pathRoot = osPaths.home() + "\\.gemFamer";
@@ -18,7 +18,7 @@ const Scripts = require('./models/Script');
 const Device = require('./models/Device');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
 const { createBuffer, getChannelInitData, getBufferData } = require('./createMessage')
-const { pressBack, pressHome, pressMenu,deviceActions ,getAttribute} = require('./adbFunctions')
+const { pressBack, pressHome, pressMenu,deviceActions, touch} = require('./adbFunctions')
 var listDevice = [];
 const ChannelCode = {
   FSLS: 'FSLS', // File System LiSt
@@ -98,10 +98,14 @@ async function createWindow() {
       }
     }
   });
+  
   ipcMain.handle("sendData", async (event, data) => {
-    console.log(data)
+    console.log("sendData =>", data)
+
     const deviceId = data.deviceId;
+
     let device = listDevice.find(c => c.deviceId == deviceId);
+
     let client;
     if (!device) {
       client=await createConnect(deviceId);
@@ -110,7 +114,9 @@ async function createWindow() {
     else {
       client = device.client;
     }
-    getAttribute(client,"","","","")
+
+    await touch(client, "", "", "", "")
+
     // switch (data.type) {
     //   case "pressMenu": {
     //    await pressMenu(client);
@@ -206,8 +212,6 @@ async function createWindow() {
     return { success: true, message: "success", data: result };
   })
 }
-
-
 function createSplashWindow() {
   if (splashWindow === null) {
     var imagePath = path.join(__dirname, "splash.jpg");
