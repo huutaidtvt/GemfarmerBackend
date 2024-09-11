@@ -4,7 +4,8 @@ async function sendMessageShell(ws, message) {
     
         let dataSend = createBuffer(32, 1, getBufferData(message));
         ws.on('message', (data) => {
-            if (data.toString().indexOf('on5xelte') > -1) {
+            console.log(data.toString())
+            if (data.toString().indexOf('sweet') > -1) {
                 ws.removeAllListeners();
                 setTimeout(() => {
                     resolve(data.toString());
@@ -50,8 +51,9 @@ async function deviceActions(ws, action) {
 async function getAttribute(ws, xpathQuery, name, seconds) {
     const waitTime = seconds * 1000;
 
-    await sendMessageShell(ws,`uiautomator dump /sdcard/ui.xml`);
-    let result=await sendMessageShell(ws,`cat /sdcard/ui.xml`);
+   // await sendMessageShell(ws,`uiautomator dump /sdcard/ui.xml`);
+    await sendMessageShell(ws,`uiautomator dump`);
+    let result=await sendMessageShell(ws,`cat /sdcard/window_dump.xml`);
     console.log(result);
 
     // setTimeout(() => {

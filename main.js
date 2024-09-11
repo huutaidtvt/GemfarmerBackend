@@ -262,7 +262,7 @@ function writelog(message) {
   fs.appendFileSync(filelog, message + "\r\n", 'utf8');
 }
 function connectWebSocket(win) {
-  let ws = new WebSocket('ws://localhost:8000/?action=multiplex');
+  let ws = new WebSocket('ws://localhost:8000/?action=multiplex',{maxPayload:4096*10});
   ws.on('error', console.error);
   ws.on('open', function open() {
     let message = createBuffer(4, 1, getChannelInitData(ChannelCode.GTRC));
@@ -366,7 +366,7 @@ async function createConnect(deviceId) {
         type: 'shell',
         data: {
           type: 'start',
-          rows: 37,
+          rows: 100,
           cols: 51,
           udid: deviceId,
         },
