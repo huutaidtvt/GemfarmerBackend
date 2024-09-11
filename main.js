@@ -18,7 +18,8 @@ const Scripts = require('./models/Script');
 const Device = require('./models/Device');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
 const { createBuffer, getChannelInitData, getBufferData } = require('./createMessage')
-const { pressBack, pressHome, pressMenu,deviceActions, touch} = require('./adbFunctions')
+const {listApp, searchApp, downloadAPK} = require('./store');
+const { pressBack, pressHome, pressMenu,deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeCustom, swipeSimple, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, closeApp, startApp, generate2FA, adbShell } = require('./adbFunctions')
 var listDevice = [];
 const ChannelCode = {
   FSLS: 'FSLS', // File System LiSt
@@ -41,6 +42,9 @@ async function createWindow() {
   //   exec(`taskkill /im gemLogin.exe /f`, (err, stdout, stderr) => {
   //   })
   // }
+  listApp()
+  // searchApp("panda")
+  // downloadAPK('com.google.android.apps.translate')
 
   mainWindow = new BrowserWindow({
     width: 1500,
@@ -115,28 +119,126 @@ async function createWindow() {
       client = device.client;
     }
 
-    await touch(client, "", "", "", "")
+    // await touch(client, '//*[@text="Facebook"]', 10, "Normal", 100)
+    // await getAttribute(client, '//*[@text="Facebook"]', 'text', 10);
+    // await elementExists(client, '//*[@text="Facebook"]', 10);
+    // await typeText(client, '//*[@resource-id="com.sec.android.app.launcher:id/app_search_edit_text_wrapper"]', 10, 'Hello ae');
+    // await screenShot(client, {fileName: 'anh2', folderOutput: 'C:\\Users\\MY ASUS\\Downloads', crop: false, outputVariable: null, startX: 0, startY: 0, endX: 0, endY: 0});
 
-    // switch (data.type) {
-    //   case "pressMenu": {
-    //    await pressMenu(client);
-    //     return { success: true, message: "success" }
-    //   }
-    //   case "pressHome": {
-    //     await  pressHome(client);
-    //     return { success: true, message: "success" }
-    //   }
-    //   case "pressBack": {
-    //     await pressBack(client);
-    //     return { success: true, message: "success" }
-    //   }
-    //   case "deviceAction":{
-    //     await deviceActions(client,data.data.action);
-    //     return { success: true, message: "success" }
+    // await toggleService(client, 'Location');
+    // await isInStallApp(client, 'com.twitter.android');
+    // await unInStallApp(client, 'com.twitter.android');
+    // await swipeCustom(client, 500, 1000, 500, 200, 1000);
+    // await transferFile(client, 'push', "C:\\Users\\MY ASUS\\Downloads\\HoVanQuang_CV_2024.pdf", '/sdcard/Download/example.jpg');
+    // await inStallApp(client, "C:\\Users\\MY ASUS\\Downloads\\Twitter (X)_10.57.0-release.0_apkcombo.com.apk");
 
-    //   }
-    // }
-    console.log(data);
+    switch (data.type) {
+      case "pressMenu": {
+       await pressMenu(client);
+        return { success: true, message: "success" }
+      }
+
+      case "pressHome": {
+        await  pressHome(client);
+        return { success: true, message: "success" }
+      }
+
+      case "pressBack": {
+        await pressBack(client);
+        return { success: true, message: "success" }
+      }
+
+      case "deviceAction":{
+        await deviceActions(client, data.data.action);
+        return { success: true, message: "success" }
+      }
+
+      case "getAttribute": {
+        await getAttribute(client, data.data.xpathQuery, data.data.name, data.data.seconds);
+        return { success: true, message: "success" }
+      }
+
+      case "elementExists": {
+        await elementExists(client, data.data.xpathQuery, data.data.seconds);
+        return { success: true, message: "success" }
+      }
+
+      case "adbShell": {
+        await adbShell(client, data.data.command);
+        return { success: true, message: "success" }
+      }
+
+      case "generate2FA": {
+        await generate2FA(client, data.data.secretKey);
+        return { success: true, message: "success" }
+      }
+
+      case "startApp": {
+        await startApp(client, data.data.packageName);
+        return { success: true, message: "success" }
+      }
+      
+      case "closeApp": {
+        await closeApp(client, data.data.packageName);
+        return { success: true, message: "success" }
+      }
+
+      case "inStallApp": {
+        await inStallApp(client, data.data.apkPath);
+        return { success: true, message: "success" }
+      }
+
+      case "unInStallApp": {
+        await unInStallApp(client, data.data.packageName);
+        return { success: true, message: "success" }
+      }
+
+      case "isInStallApp": {
+        await isInStallApp(client, data.data.packageName);
+        return { success: true, message: "success" }
+      }
+
+      case "toggleService": {
+        await toggleService(client, data.data.service);
+        return { success: true, message: "success" }
+      }
+
+      case "transferFile": {
+        await transferFile(client, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
+        return { success: true, message: "success" }
+      }
+
+      case "touch": {
+        await touch(client, data.data.xpathQuery, data.data.timeOut, data.data.touchType, data.data.delay);
+        return { success: true, message: "success" }
+      }
+
+      case "screenShot": {
+        await screenShot(client, data.data.options);
+        return { success: true, message: "success" }
+      }
+
+      case "swipeSimple": {
+        await swipeSimple(client, data.data.direction);
+        return { success: true, message: "success" }
+      }
+
+      case "swipeCustom": {
+        await swipeCustom(client, data.data.startX, data.data.startY, data.data.endX, data.data.endY, data.data.duration);
+        return { success: true, message: "success" }
+      }
+
+      case "pressKey": {
+        await pressKey(client, data.data.keyCode);
+        return { success: true, message: "success" }
+      }
+
+      case "typeText": {
+        await typeText(client, data.data.selector, data.data.seconds, data.data.text);
+        return { success: true, message: "success" }
+      }
+    }
+  
   })
   ipcMain.handle("checkLicense", async (event, data) => {
     try {
@@ -266,7 +368,7 @@ function writelog(message) {
   fs.appendFileSync(filelog, message + "\r\n", 'utf8');
 }
 function connectWebSocket(win) {
-  let ws = new WebSocket('ws://localhost:8000/?action=multiplex');
+  let ws = new WebSocket('ws://localhost:8000/?action=multiplex'); //16384
   ws.on('error', console.error);
   ws.on('open', function open() {
     let message = createBuffer(4, 1, getChannelInitData(ChannelCode.GTRC));
@@ -361,7 +463,7 @@ async function getDevices() {
 async function createConnect(deviceId) {
   return new Promise((resolve, reject) => {
     let timeOut = setTimeout(() => { reject() }, 10000)
-    let client = new WebSocket('ws://localhost:8000/?action=multiplex');
+    let client = new WebSocket('ws://localhost:8000/?action=multiplex',{maxPayload: 4096*10});
     client.on("open", () => {
       let message = createBuffer(4, 1, getChannelInitData(ChannelCode.SHEL));
       client.send(message);
@@ -370,8 +472,8 @@ async function createConnect(deviceId) {
         type: 'shell',
         data: {
           type: 'start',
-          rows: 37,
-          cols: 51,
+          rows: 200,
+          cols: 200,
           udid: deviceId,
         },
       };
