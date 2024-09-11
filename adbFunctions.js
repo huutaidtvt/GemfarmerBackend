@@ -262,16 +262,6 @@ async function closeApp(ws, packageName) {
     await sendMessageShell(ws, `am force-stop ${packageName}`);
 }
 
-// async function inStallApp(ws, apkPathOnPC) {
-//     // Chuyển đổi đường dẫn từ máy tính thành tên file APK
-//     const apkFileName = apkPathOnPC.split('\\').pop(); // Lấy tên file từ đường dẫn
-//     // Đường dẫn file APK trên thiết bị Android (phải sao chép file trước)
-//     const apkPathOnAndroid = `/sdcard/Download/${apkFileName}`;
-//     console.log('apkPath: ', apkPathOnAndroid);
-    
-//     // Gửi lệnh cài đặt APK qua WebSocket
-//     await sendMessageShell(ws, `pm install ${apkPathOnAndroid}`);
-// }
 async function unInStallApp(ws, packageName) {
     await sendMessageShell(ws, `pm uninstall ${packageName}`);
 }

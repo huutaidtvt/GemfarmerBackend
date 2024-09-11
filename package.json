@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.14",
-    "axios": "^1.7.7",
+    "apkpure-crawler": "^1.0.1",
     "crypto": "^1.0.1",
     "electron-builder-squirrel-windows": "^24.13.3",
     "google-play-scraper": "^9.2.0",
@@ -21,6 +21,7 @@
     "mkdirp": "^3.0.1",
     "node-fetch": "^2.7.0",
     "nodejs-file-downloader": "^4.13.0",
+    "os": "^0.1.2",
     "os-paths": "^7.4.0",
     "sequelize": "^6.37.3",
     "sqlite3": "5.1.6",

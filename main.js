@@ -42,9 +42,10 @@ async function createWindow() {
   //   exec(`taskkill /im gemLogin.exe /f`, (err, stdout, stderr) => {
   //   })
   // }
-  listApp()
+  
+  // listApp()
   // searchApp("panda")
-  // downloadAPK('com.google.android.apps.translate')
+  // downloadAPK("com.zing.zalo")
 
   mainWindow = new BrowserWindow({
     width: 1500,

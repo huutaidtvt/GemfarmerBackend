@@ -1,32 +1,19 @@
 const gplay = require('google-play-scraper');
-const { BrowserWindow } = require('electron');
+const apkpureCrawler = require('apkpure-crawler');
 const path = require('path');
+const os = require('os');
 
-function downloadAPK(appId) {
-    
-    const downloadWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
-        frame: false,
-        alwaysOnTop: true,
-        show: false,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
-        }
-    });
+async function downloadAPK(appId, version) {
+    const downloadDir = path.join(os.homedir(), 'Downloads');
+    const data = await apkpureCrawler.downloadApk(appId, version, downloadDir);
 
-    downloadWindow.loadURL(`file://${path.join(__dirname, 'download.html')}`);
+    if(data) {
+        console.log('Downloaded APK successfully');
+    }else{
+        console.log('Failed to download APK');
+    }
 
-    downloadWindow.webContents.executeJavaScript(`
-        window.location.href = 'https://d.apkpure.com/b/APK/${appId}?version=latest';
-    `);
-
-    setTimeout(() => {
-        if (downloadWindow) {
-            downloadWindow.close();
-        }
-    }, 5000); // Thay đổi thời gian nếu cần
+    apkpureCrawler.closeBrowser();
 }
 
 // Hàm chung để xử lý phân trang
