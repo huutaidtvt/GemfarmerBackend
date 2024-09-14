@@ -18,8 +18,8 @@ const Scripts = require('./models/Script');
 const Device = require('./models/Device');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
 const { createBuffer, getChannelInitData, getBufferData } = require('./createMessage')
-const {listApp, searchApp, downloadAPK} = require('./store');
-const { pressBack, pressHome, pressMenu,deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeCustom, swipeSimple, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, closeApp, startApp, generate2FA, adbShell } = require('./adbFunctions')
+const { listApp, searchApp, downloadAPK } = require('./store');
+const { pressBack, pressHome, pressMenu, deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeScroll, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, stopApp, startApp, generate2FA, adbShell, imapReadMail, actionFile } = require('./adbFunctions')
 var listDevice = [];
 const ChannelCode = {
   FSLS: 'FSLS', // File System LiSt
@@ -42,8 +42,8 @@ async function createWindow() {
   //   exec(`taskkill /im gemLogin.exe /f`, (err, stdout, stderr) => {
   //   })
   // }
-  
-  // listApp()
+
+  // listApp(2)
   // searchApp("panda")
   // downloadAPK("com.zing.zalo")
 
@@ -103,7 +103,7 @@ async function createWindow() {
       }
     }
   });
-  
+
   ipcMain.handle("sendData", async (event, data) => {
     console.log("sendData =>", data)
 
@@ -113,7 +113,7 @@ async function createWindow() {
 
     let client;
     if (!device) {
-      client=await createConnect(deviceId);
+      client = await createConnect(deviceId);
       listDevice.push({ deviceId, client })
     }
     else {
@@ -133,14 +133,34 @@ async function createWindow() {
     // await transferFile(client, 'push', "C:\\Users\\MY ASUS\\Downloads\\HoVanQuang_CV_2024.pdf", '/sdcard/Download/example.jpg');
     // await inStallApp(client, "C:\\Users\\MY ASUS\\Downloads\\Twitter (X)_10.57.0-release.0_apkcombo.com.apk");
 
+    // await imapReadMail(
+    //   'gmail',                                              // Dịch vụ email: Gmail
+    //   'quangcover2k3az@gmail.com',                          // Địa chỉ email
+    //   'zxko urhg nakh ntwz',                                // Mật khẩu ứng dụng
+    //   'INBOX',                                              // Mailbox: INBOX
+    //   { unseen: true, markAsRead: false, latestMail: true }, // Options
+    //   '\\d+',                                                 // Content mail contains (regex): Important
+    //   30,                                                  // Timeout: 30 giây
+    // )
+
+    // await actionFile(
+    //   'write',
+    //   'C:\\Users\\MY ASUS\\Downloads\\new.txt',
+    //   'Hello ae tôi là pro',
+    //   'TXT',
+    //   'append',
+    //   'new line',
+    // );
+
     switch (data.type) {
+      // Run oke
       case "pressMenu": {
-       await pressMenu(client);
+        await pressMenu(client);
         return { success: true, message: "success" }
       }
 
       case "pressHome": {
-        await  pressHome(client);
+        await pressHome(client);
         return { success: true, message: "success" }
       }
 
@@ -149,28 +169,8 @@ async function createWindow() {
         return { success: true, message: "success" }
       }
 
-      case "deviceAction":{
+      case "deviceAction": {
         await deviceActions(client, data.data.action);
-        return { success: true, message: "success" }
-      }
-
-      case "getAttribute": {
-        await getAttribute(client, data.data.xpathQuery, data.data.name, data.data.seconds);
-        return { success: true, message: "success" }
-      }
-
-      case "elementExists": {
-        await elementExists(client, data.data.xpathQuery, data.data.seconds);
-        return { success: true, message: "success" }
-      }
-
-      case "adbShell": {
-        await adbShell(client, data.data.command);
-        return { success: true, message: "success" }
-      }
-
-      case "generate2FA": {
-        await generate2FA(client, data.data.secretKey);
         return { success: true, message: "success" }
       }
 
@@ -178,29 +178,78 @@ async function createWindow() {
         await startApp(client, data.data.packageName);
         return { success: true, message: "success" }
       }
-      
-      case "closeApp": {
-        await closeApp(client, data.data.packageName);
+
+      case "stopApp": {
+        await stopApp(client, data.data.packageName);
         return { success: true, message: "success" }
       }
+
+      case "uninstallApp": {
+        await unInStallApp(client, data.data.ValuePackageName);
+        return { success: true, message: "success" }
+      }
+
+      case "swipeScroll": {
+        await swipeScroll(client, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
+        return { success: true, message: "success" }
+      }
+
+      case "typeText": {
+        await typeText(client, data.data.selector, data.data.timeout, data.data.inputText);
+        return { success: true, message: "success" }
+      }
+
+      case "tonggleService": {
+        await toggleService(client, data.data.action);
+        return { success: true, message: "success" }
+      }
+
+      case "pressKeyPhone": {
+        await pressKey(client, data.data.keyCode);
+        return { success: true, message: "success" }
+      }
+
+      case "adbShellCommand": {
+        await adbShell(client, data.data.command);
+        return { success: true, message: "success" }
+      }
+
+      case "touch": {
+        await touch(client, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
+        return { success: true, message: "success" }
+      }
+
+      case "fileAction": {
+        actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
+        return { success: true, message: "success" }
+      }
+
+      //Cần trả ra tb
+
+      case "getAttribute": {
+        const result = await getAttribute(client, data.data.xPath, data.data.name, data.data.timeOut);
+        return { success: true, message: "success", data: result }
+      }
+
+      case "isInstallApp": {
+        const result = await isInStallApp(client, data.data.packageName);
+        return { success: true, message: "success", data: result }
+      }
+
+      case "ElementExists": {
+        const result = await elementExists(client, data.data.xPath, data.data.timeOut);
+        return { success: true, message: "success", data: result }
+      }
+
+      case "generate2FA": {
+        const result = await generate2FA(client, data.data.secretKey);
+        return { success: true, message: "success", data: result }
+      }
+
+      // Đang lỗi chưa fix được
 
       case "inStallApp": {
         await inStallApp(client, data.data.apkPath);
-        return { success: true, message: "success" }
-      }
-
-      case "unInStallApp": {
-        await unInStallApp(client, data.data.packageName);
-        return { success: true, message: "success" }
-      }
-
-      case "isInStallApp": {
-        await isInStallApp(client, data.data.packageName);
-        return { success: true, message: "success" }
-      }
-
-      case "toggleService": {
-        await toggleService(client, data.data.service);
         return { success: true, message: "success" }
       }
 
@@ -209,38 +258,15 @@ async function createWindow() {
         return { success: true, message: "success" }
       }
 
-      case "touch": {
-        await touch(client, data.data.xpathQuery, data.data.timeOut, data.data.touchType, data.data.delay);
-        return { success: true, message: "success" }
-      }
-
       case "screenShot": {
         await screenShot(client, data.data.options);
         return { success: true, message: "success" }
       }
 
-      case "swipeSimple": {
-        await swipeSimple(client, data.data.direction);
-        return { success: true, message: "success" }
-      }
-
-      case "swipeCustom": {
-        await swipeCustom(client, data.data.startX, data.data.startY, data.data.endX, data.data.endY, data.data.duration);
-        return { success: true, message: "success" }
-      }
-
-      case "pressKey": {
-        await pressKey(client, data.data.keyCode);
-        return { success: true, message: "success" }
-      }
-
-      case "typeText": {
-        await typeText(client, data.data.selector, data.data.seconds, data.data.text);
-        return { success: true, message: "success" }
-      }
     }
-  
+    return { success: true, message: "success" }
   })
+
   ipcMain.handle("checkLicense", async (event, data) => {
     try {
       data = JSON.parse(data);
@@ -255,6 +281,7 @@ async function createWindow() {
       return { success: false, message: error }
     }
   });
+
   ipcMain.handle('crudScript', async (event, data) => {
     data = JSON.parse(data);
     switch (data.action) {
@@ -324,7 +351,7 @@ function createSplashWindow() {
       frame: false,
       show: true,
       transparent: true,
-      opacity :0.5,
+      opacity: 0.5,
       //images: true,
       center: true,
       'alwaysOnTop': true,
@@ -464,7 +491,7 @@ async function getDevices() {
 async function createConnect(deviceId) {
   return new Promise((resolve, reject) => {
     let timeOut = setTimeout(() => { reject() }, 10000)
-    let client = new WebSocket('ws://localhost:8000/?action=multiplex',{maxPayload: 4096*10});
+    let client = new WebSocket('ws://localhost:8000/?action=multiplex', { maxPayload: 4096 * 10 });
     client.on("open", () => {
       let message = createBuffer(4, 1, getChannelInitData(ChannelCode.SHEL));
       client.send(message);

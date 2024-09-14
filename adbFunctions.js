@@ -4,6 +4,9 @@ const { DOMParser } = require('xmldom');
 const Jimp = require('jimp');
 const { createBuffer, getBufferData } = require('./createMessage');
 const path = require('path');
+const speakeasy = require('speakeasy');
+const imaps = require('imap-simple');
+const { simpleParser } = require('mailparser');
 
 async function sendMessageShell(ws, message) {
     return new Promise((resolve, reject) => {
@@ -33,6 +36,198 @@ async function sendMessageShell(ws, message) {
         ws.send(dataSend);
         ws.send([0x20, 0x01, 0x00, 0x00, 0x00, 0x0d, 0x0a]);
     });
+}
+
+function closeConnectionAfterTimeout(connection, timeout) {
+    setTimeout(() => connection.end(), timeout * 1000);
+}
+// Tạo lệnh IMAP để kết nối
+async function imapReadMail(
+    service,
+    email,
+    password,
+    mailbox = 'INBOX',
+    options = { unseen: true, markAsRead: false, latestMail: true },
+    contentContains = '',
+    timeout = 30,
+    imapHost = 'imap.gmail.com',
+    imapPort = 993,
+    tlsSecure = true
+) {
+
+    let host, port, tls;
+    switch (service.toLowerCase()) {
+        case 'gmail':
+            host = 'imap.gmail.com';
+            port = 993;
+            tls = true;
+            break;
+        case 'outlook':
+        case 'hotmail':
+            host = 'imap-mail.outlook.com';
+            port = 993;
+            tls = true;
+            break;
+        case 'yahoo':
+            host = 'imap.mail.yahoo.com';
+            port = 993;
+            tls = true;
+            break;
+        case 'custom':
+            host = imapHost;
+            port = imapPort;
+            tls = tlsSecure;
+            break;
+        default:
+            throw new Error('Unsupported email service');
+    }
+
+    const config = {
+        imap: {
+            user: email,
+            password: password,
+            host: host,
+            port: port,
+            tls: tls,
+            tlsOptions: {
+                rejectUnauthorized: false  // Bỏ qua kiểm tra chứng chỉ tự ký
+            },
+            authTimeout: 3000,
+        }
+    };
+
+    try {
+        // Kết nối tới server IMAP
+        const connection = await imaps.connect(config);
+        await connection.openBox(mailbox);
+
+        // Tùy chọn tìm email
+        const searchCriteria = [];
+        if (options.unseen) searchCriteria.push('UNSEEN');
+        if (options.latestMail) searchCriteria.push(['SINCE', new Date()]);
+
+        const fetchOptions = {
+            bodies: ['HEADER', 'TEXT', ''],
+            markSeen: options.markAsRead
+        };
+
+        // Lấy email từ mailbox
+        const messages = await connection.search(searchCriteria, fetchOptions);
+
+        // Chỉ đọc email mới nhất nếu có
+        if (messages.length > 0) {
+            // Sắp xếp các email theo ngày gửi
+            messages.sort((a, b) => b.attributes.date - a.attributes.date);
+
+            // Chọn email mới nhất
+            const latestMessage = messages[0];
+            const all = latestMessage.parts.find(part => part.which === '');
+            if (!all) {
+                throw new Error('Email body not found');
+            }
+
+            const id = latestMessage.attributes.uid;
+            const idHeader = `Imap-Id: ${id}\r\n`;
+
+            const parsed = await simpleParser(idHeader + all.body);
+
+            // Xử lý nội dung email: loại bỏ các ký tự xuống dòng và khoảng trắng không cần thiết
+            const cleanContent = parsed.text.replace(/\r?\n|\r/g, ' ').trim();
+
+            // Dữ liệu cơ bản trả về luôn bao gồm `from`, `subject`, và `content`
+            const emailDetails = {
+                from: parsed.from.text,
+                subject: parsed.subject,
+                content: cleanContent  // Nội dung đã loại bỏ ký tự xuống dòng
+            };
+
+            // Nếu có contentContains và khớp, thêm trường extractedData
+            if (contentContains && parsed.text && parsed.text.match(new RegExp(contentContains, 'i'))) {
+                const regex = new RegExp(contentContains, 'i');
+                const match = parsed.text.match(regex);
+
+                if (match) {
+                    const extractedData = match[1] ? match[1] : match[0];
+                    emailDetails.extractedData = extractedData;
+                } else {
+                    console.log('Không tìm thấy chuỗi khớp với regex trong email.');
+                }
+            }
+
+            closeConnectionAfterTimeout(connection, timeout);
+
+            console.log('Email log:', emailDetails);
+
+            return emailDetails;
+        }
+
+        closeConnectionAfterTimeout(connection, timeout);
+        return null;
+
+    } catch (error) {
+        console.error('Error reading emails:', error);
+        return null;
+    }
+}
+
+function actionFile(action, filePath, inputData = "", selectorType, writeMode, appendMode, delimiter = ',') {
+    // Chuẩn hóa đường dẫn file
+    const fullPath = path.resolve(filePath);
+
+    if (action === 'Delete') {
+        // Xóa file
+        if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+            console.log(`File deleted: ${fullPath}`);
+        } else {
+            console.log(`File not found: ${fullPath}`);
+        }
+    } else if (action === 'Write') {
+        let dataToWrite = '';
+
+        if (selectorType === 'txt') {
+            dataToWrite = inputData;
+        } else if (selectorType === 'csv') {
+            // Đối với CSV, cần phải định dạng dữ liệu với delimiter
+            if (Array.isArray(inputData)) {
+                dataToWrite = inputData.map(row => row.join(delimiter)).join('\n');
+            } else {
+                throw new Error('Input data for CSV must be an array of arrays.');
+            }
+        } else if (selectorType === 'json') {
+            dataToWrite = JSON.stringify(inputData, null, 2);
+        } else {
+            throw new Error('Unsupported selector type');
+        }
+
+        if (writeMode === 'overwrite') {
+            fs.writeFileSync(fullPath, dataToWrite, 'utf8');
+        } else if (writeMode === 'append') {
+            let existingData = '';
+
+            if (fs.existsSync(fullPath)) {
+                existingData = fs.readFileSync(fullPath, 'utf8');
+            }
+
+            if (appendMode === 'newLine') {
+                fs.appendFileSync(fullPath, (existingData ? '\n' : '') + dataToWrite, 'utf8');
+            } else if (appendMode === 'sameLine') {
+                if (selectorType === 'txt' || selectorType === 'csv') {
+                    fs.appendFileSync(fullPath, (existingData ? delimiter : '') + dataToWrite, 'utf8');
+                } else {
+                    fs.appendFileSync(fullPath, (existingData ? '\n' : '') + dataToWrite, 'utf8');
+                }
+            } else {
+                throw new Error('Unsupported append mode');
+            }
+        } else {
+            throw new Error('Unsupported write mode');
+        }
+
+        console.log(`File written: ${fullPath}`);
+    } else {
+        throw new Error('Unsupported action');
+    }
 }
 
 async function inStallApp(ws, apkPath) {
@@ -99,7 +294,7 @@ async function screenShot(ws, options) {
             // Nếu dữ liệu là chuỗi, chuyển đổi thành Buffer
             // const screenshotBuffer = Buffer.from(screenshotData, 'binary');
             console.log('Screenshot data:', screenshotData);
-            
+
             // Đoạn byte cụ thể bạn muốn loại bỏ
             const headerToRemove = [0x20, 0x01, 0x00, 0x00, 0x00, 0x0d, 0x0a];
 
@@ -107,7 +302,7 @@ async function screenShot(ws, options) {
             const cleanedData = removeAllOccurrences(screenshotData, headerToRemove);
 
             console.log('Cleaned data:', cleanedData);
-            
+
             // Ghi dữ liệu ảnh vào tệp cục bộ
             fs.writeFileSync(localScreenshotPath, cleanedData);
 
@@ -173,29 +368,30 @@ async function getAttribute(ws, xpathQuery, name, seconds) {
 
     const waitTime = seconds * 1000;
 
+    // Gửi lệnh dump giao diện người dùng
     await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
 
     setTimeout(async () => {
+        // Nhận nội dung XML trực tiếp từ shell
         let result = await sendMessageShell(ws, `cat /sdcard/ui.xml`);
 
+        // Loại bỏ phần dữ liệu không phải là XML
         result = result.substring(result.indexOf('<?xml'));
 
-        fs.writeFileSync('ui.xml', result, 'utf8');
-
-        // Kiểm tra sự tồn tại của tệp XML trước khi đọc
-        if (fs.existsSync('ui.xml')) {
-            // Đọc và phân tích tệp XML
-            const data = fs.readFileSync('ui.xml', 'utf8');
-            const doc = new DOMParser().parseFromString(data);
+        // Kiểm tra xem kết quả có phải là XML hợp lệ hay không
+        if (result.startsWith('<?xml')) {
+            // Phân tích chuỗi XML thành tài liệu
+            const doc = new DOMParser().parseFromString(result, 'text/xml');
             const nodes = xpath.select(xpathQuery, doc);
 
+            // Kiểm tra xem có phần tử nào khớp với XPath hay không
             if (nodes.length > 0) {
                 const node = nodes[0];
                 const attributeValue = node.getAttribute(name);
 
                 if (attributeValue) {
                     console.log(`Attribute found: ${attributeValue}`);
-                    return attributeValue
+                    return attributeValue;
                 } else {
                     console.log('Attribute not found');
                 }
@@ -203,41 +399,48 @@ async function getAttribute(ws, xpathQuery, name, seconds) {
                 console.log('Element not found');
             }
         } else {
-            console.log('UI XML file does not exist');
+            console.log('Invalid XML format');
         }
 
     }, waitTime);
 }
+
 async function elementExists(ws, xpathQuery, seconds = 10) {
 
     console.log(`ElementExists: ${xpathQuery}, ${seconds}`);
 
+    // Gửi lệnh để dump giao diện người dùng
     await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
 
+    // Sử dụng setTimeout để chờ một khoảng thời gian trước khi kiểm tra
     setTimeout(async () => {
 
+        // Nhận nội dung XML từ thiết bị thông qua WebSocket
         let result = await sendMessageShell(ws, `cat /sdcard/ui.xml`);
 
+        // Loại bỏ phần không phải XML nếu cần
         result = result.substring(result.indexOf('<?xml'));
 
-        fs.writeFileSync('ui.xml', result, 'utf8');
-
-        if (fs.existsSync('ui.xml')) {
-            // Bước 2: Đọc và phân tích tệp XML để lấy tọa độ từ XPath
-            const data = fs.readFileSync('ui.xml', 'utf8');
-            const doc = new DOMParser().parseFromString(data);
+        // Kiểm tra xem kết quả có phải là XML hợp lệ không
+        if (result.startsWith('<?xml')) {
+            // Phân tích chuỗi XML thành đối tượng tài liệu
+            const doc = new DOMParser().parseFromString(result, 'text/xml');
             const nodes = xpath.select(xpathQuery, doc);
 
+            // Kiểm tra sự tồn tại của phần tử dựa trên XPath
             if (nodes.length > 0) {
                 console.log(`Element found: ${nodes.length}`);
-                return true
+                return true;
             } else {
                 console.log('Element not found');
-                return false
+                return false;
             }
+        } else {
+            console.log('Invalid XML format');
+            return false;
         }
 
-    }, seconds * 1000);
+    }, seconds * 1000); // Thời gian chờ theo giây
 }
 
 async function adbShell(ws, command) {
@@ -253,12 +456,14 @@ async function generate2FA(ws, secretKey) {
     const message = `Generated 2FA token: ${token}`;
     await sendMessageShell(ws, message); // Gửi tin nhắn qua WebSocket
 
+    console.log("2FA token: ", token);
+    return token
 }
 
 async function startApp(ws, packageName) {
     await sendMessageShell(ws, `monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`)
 }
-async function closeApp(ws, packageName) {
+async function stopApp(ws, packageName) {
     await sendMessageShell(ws, `am force-stop ${packageName}`);
 }
 
@@ -270,8 +475,10 @@ async function isInStallApp(ws, packageName) {
 
     if (isInstalled.includes(packageName)) {
         console.log(`${packageName} is installed.`);
+        return true
     } else {
         console.log(`${packageName} is not installed.`);
+        return false
     }
 }
 async function toggleAirplaneMode(ws) {
@@ -360,16 +567,16 @@ async function toggleLocation(ws) {
 async function toggleService(ws, service) {
 
     switch (service) {
-        case 'AirplaneMode':
+        case 'airplane':
             toggleAirplaneMode(ws);
             break;
-        case 'Wifi':
+        case 'wifi':
             toggleWifi(ws);
             break;
-        case '3g/4g':
+        case 'network':
             toggleData(ws);
             break;
-        case 'Location':
+        case 'location':
             toggleLocation(ws);
             break;
         default:
@@ -390,70 +597,140 @@ async function transferFile(ws, action, localFilePath, remoteFilePath) {
 
 }
 
-async function touch(ws, xpathQuery, timeOut = 10, touchType = 'Normal', delay = 100) {
-    console.log(`Touch: ${xpathQuery}, ${timeOut}, ${touchType}, ${delay}`);
+// async function touch(ws, xpathQuery, timeOut = 10, touchType = 'Normal', delay = 100) {
+//     console.log(`Touch: ${xpathQuery}, ${timeOut}, ${touchType}, ${delay}`);
 
-    // Gửi lệnh để tạo bản dump của giao diện người dùng
-    await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
+//     // Gửi lệnh để tạo bản dump của giao diện người dùng
+//     await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
 
-    // Đọc nội dung file XML
-    let result = await sendMessageShell(ws, `cat /sdcard/ui.xml`);
+//     // Đọc nội dung file XML
+//     let result = await sendMessageShell(ws, `cat /sdcard/ui.xml`);
 
-    result = result.substring(result.indexOf('<?xml'));
+//     result = result.substring(result.indexOf('<?xml'));
 
-    // Kiểm tra xem kết quả có phải là XML không
-    if (result.startsWith('<?xml')) {
-        fs.writeFileSync('ui.xml', result, 'utf8');
+//     // Kiểm tra xem kết quả có phải là XML không
+//     if (result.startsWith('<?xml')) {
+//         // Phân tích trực tiếp nội dung XML từ biến result thay vì lưu vào file
+//         const doc = new DOMParser().parseFromString(result);
+//         const nodes = xpath.select(xpathQuery, doc);
 
-        // Đọc file XML và phân tích nó
-        const data = fs.readFileSync('ui.xml', 'utf8');
-        const doc = new DOMParser().parseFromString(data);
-        const nodes = xpath.select(xpathQuery, doc);
+//         if (nodes.length > 0) {
+//             console.log(`Element found: ${nodes.length}`);
 
-        if (nodes.length > 0) {
-            console.log(`Element found: ${nodes.length}`);
+//             const boundsAttr = nodes[0].getAttribute('bounds');
+//             const boundsRegex = /(\d+),(\d+)\]\[(\d+),(\d+)/;
+//             const match = boundsAttr.match(boundsRegex);
 
-            const boundsAttr = nodes[0].getAttribute('bounds');
-            const boundsRegex = /(\d+),(\d+)\]\[(\d+),(\d+)/;
-            const match = boundsAttr.match(boundsRegex);
+//             if (match) {
+//                 const [left, top, right, bottom] = match.slice(1).map(Number);
+//                 const x = Math.floor((left + right) / 2);
+//                 const y = Math.floor((top + bottom) / 2);
 
-            if (match) {
-                const [left, top, right, bottom] = match.slice(1).map(Number);
-                const x = Math.floor((left + right) / 2);
-                const y = Math.floor((top + bottom) / 2);
+//                 const timeOutMilliseconds = timeOut * 1000;
 
-                const timeOutMilliseconds = timeOut * 1000;
+//                 let touchCommand;
+//                 switch (touchType) {
+//                     case 'Long':
+//                         touchCommand = `input swipe ${x} ${y} ${x} ${y} ${timeOutMilliseconds}`;
+//                         break;
+//                     case 'Double':
+//                         touchCommand = `input tap ${x} ${y} && input tap ${x} ${y}`;
+//                         break;
+//                     default:
+//                         touchCommand = `input tap ${x} ${y}`;
+//                         break;
+//                 }
 
-                let touchCommand;
-                switch (touchType) {
-                    case 'Long':
-                        touchCommand = `input swipe ${x} ${y} ${x} ${y} ${timeOutMilliseconds}`;
-                        break;
-                    case 'Double':
-                        touchCommand = `input tap ${x} ${y} && input tap ${x} ${y}`;
-                        break;
-                    default:
-                        touchCommand = `input tap ${x} ${y}`;
-                        break;
+//                 // Gửi lệnh chạm sau một khoảng thời gian trễ (nếu có)
+//                 if (delay > 0) {
+//                     setTimeout(() => {
+//                         sendMessageShell(ws, touchCommand);
+//                     }, delay);
+//                 } else {
+//                     await sendMessageShell(ws, touchCommand);
+//                 }
+//             }
+//         } else {
+//             console.log("Element not found for the given XPath.");
+//         }
+//     } else {
+//         console.log("Invalid XML format.");
+//     }
+// }
+
+async function touch(ws, selectBy = 'selector', options, touchType = 'Normal', delay = 100) {
+    let x, y;
+
+    if (selectBy === 'selector') {
+        const { xpathQuery } = options
+        // Gửi lệnh để tạo bản dump của giao diện người dùng
+        await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Đọc nội dung file XML
+        let result = await sendMessageShell(ws, `cat /sdcard/ui.xml`);
+        result = result.substring(result.indexOf('<?xml'));
+
+        // Kiểm tra xem kết quả có phải là XML không
+        if (result.startsWith('<?xml')) {
+            // Phân tích trực tiếp nội dung XML từ biến result
+            const doc = new DOMParser().parseFromString(result, 'text/xml');
+            const nodes = xpath.select(xpathQuery, doc);
+
+            if (nodes.length > 0) {
+                console.log(`Element found: ${nodes.length}`);
+
+                const boundsAttr = nodes[0].getAttribute('bounds');
+                const boundsRegex = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/;
+                const match = boundsAttr.match(boundsRegex);
+
+                if (match) {
+                    const [left, top, right, bottom] = match.slice(1).map(Number);
+                    x = Math.floor((left + right) / 2);
+                    y = Math.floor((top + bottom) / 2);
                 }
-
-                // Gửi lệnh chạm sau một khoảng thời gian trễ (nếu có)
-                if (delay > 0) {
-                    setTimeout(() => {
-                        sendMessageShell(ws, touchCommand);
-                    }, delay);
-                } else {
-                    await sendMessageShell(ws, touchCommand);
-                }
+            } else {
+                console.log("Element not found for the given XPath.");
+                return;
             }
         } else {
-            console.log("Element not found for the given XPath.");
+            console.log("Invalid XML format.");
+            return;
         }
+    } else if (selectBy === 'coordinate') {
+        const { xCoordinate, yCoordinate } = options
+        // Sử dụng tọa độ trực tiếp từ tham số đầu vào
+        x = xCoordinate;
+        y = yCoordinate;
+        console.log(`Using provided coordinates: X: ${x}, Y: ${y}`);
     } else {
-        console.log("Invalid XML format.");
+        console.log("Invalid SelectBy option. Use 'selector' or 'coordinates'.");
+        return;
     }
-}
 
+    const timeOutMilliseconds = options.timeOut * 1000;
+
+    console.log(`Touching element with coordinates: X: ${x}, Y: ${y}`);
+
+    let touchCommand;
+    switch (touchType) {
+        case 'Long':
+            touchCommand = `input swipe ${x} ${y} ${x} ${y} ${timeOutMilliseconds}`;
+            break;
+        case 'Double':
+            touchCommand = `input tap ${x} ${y} && input tap ${x} ${y}`;
+            break;
+        default:
+            touchCommand = `input tap ${x} ${y}`;
+            break;
+    }
+
+    setTimeout(() => {
+        sendMessageShell(ws, touchCommand);
+    }, delay);
+
+}
 // async function screenShot(event, options) {
 
 //     const screenshotName = options.fileName || 'screenshot.png';
@@ -519,25 +796,25 @@ async function swipeSimple(ws, direction) {
     let startX, startY, endX, endY;
 
     switch (direction) {
-        case 'Up':
+        case 'up':
             startX = 500;
             startY = 1000;
             endX = 500;
             endY = 200;
             break;
-        case 'Down':
+        case 'down':
             startX = 500;
             startY = 300;
             endX = 500;
             endY = 800;
             break;
-        case 'Left':
+        case 'left':
             startX = 600;
             startY = 500;
             endX = 300;
             endY = 500;
             break;
-        case 'Right':
+        case 'right':
             startX = 200;
             startY = 500;
             endX = 1000;
@@ -553,6 +830,16 @@ async function swipeCustom(ws, startX, startY, endX, endY, duration) {
     await sendMessageShell(ws, `input swipe ${startX} ${startY} ${endX} ${endY} ${duration}`);
 }
 
+async function swipeScroll(ws, mode, options) {
+    if (mode === 'custom') {
+        let { startX, startY, endX, endY, duration } = options;
+        await swipeCustom(ws, startX, startY, endX, endY, duration);
+    } else {
+        let { direction } = options;
+        await swipeSimple(ws, direction);
+    }
+}
+
 async function pressKey(ws, keyCode) {
     await sendMessageShell(ws, `input keyevent ${keyCode}`);
 }
@@ -560,27 +847,21 @@ async function pressKey(ws, keyCode) {
 async function typeText(ws, selector, seconds = 10, text) {
     console.log(`Selector: ${selector}, Duration: ${seconds}, Text: ${text}`);
 
+    // Gửi lệnh để tạo bản dump của giao diện người dùng
     await sendMessageShell(ws, 'uiautomator dump /sdcard/ui.xml');
 
     setTimeout(async () => {
-
+        // Đọc nội dung file XML từ thiết bị
         let result = await sendMessageShell(ws, `cat /sdcard/ui.xml`);
 
+        // Loại bỏ phần không phải XML
         result = result.substring(result.indexOf('<?xml'));
 
-        fs.writeFileSync('ui.xml', result, 'utf8');
-
-        // Kiểm tra sự tồn tại của tệp XML trước khi đọc
-        if (fs.existsSync('ui.xml')) {
-
-            const data = fs.readFileSync('ui.xml', 'utf8');
-            const doc = new DOMParser().parseFromString(data, 'text/xml');
+        // Kiểm tra xem kết quả có phải là XML không
+        if (result.startsWith('<?xml')) {
+            // Phân tích trực tiếp nội dung XML từ biến result
+            const doc = new DOMParser().parseFromString(result, 'text/xml');
             const nodes = xpath.select(selector, doc);
-
-            // // Bước 2: Đọc và phân tích tệp XML để lấy tọa độ của trường nhập liệu
-            // const data = fs.readFileSync('ui.xml', 'utf8');
-            // const doc = new DOMParser().parseFromString(data, 'text/xml');
-            // const nodes = xpath.select(selector, doc);
 
             if (nodes.length > 0) {
                 const node = nodes[0];
@@ -591,6 +872,7 @@ async function typeText(ws, selector, seconds = 10, text) {
                     return;
                 }
 
+                // Tìm tọa độ từ thuộc tính 'bounds'
                 const boundsRegex = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/;
                 const match = boundsAttr.match(boundsRegex);
 
@@ -604,7 +886,7 @@ async function typeText(ws, selector, seconds = 10, text) {
                     await sendMessageShell(ws, `input tap ${x} ${y}`);
 
                     // Bước 4: Nhập văn bản vào trường
-                    const escapedText = text.replace(/ /g, '%s'); // Escape space characters
+                    const escapedText = text.replace(/ /g, '%s'); // Escape khoảng trắng
                     const typeCommand = `input text "${escapedText}"`;
 
                     console.log(`Executing command: ${typeCommand}`);
@@ -613,15 +895,18 @@ async function typeText(ws, selector, seconds = 10, text) {
                 } else {
                     console.log('Invalid bounds attribute format');
                 }
+            } else {
+                console.log("Element not found for the given XPath.");
             }
+        } else {
+            console.log("Invalid XML format.");
         }
     }, seconds * 1000);
-
 }
 
 module.exports = {
     startApp,
-    closeApp,
+    stopApp,
     pressBack,
     pressHome,
     pressMenu,
@@ -633,8 +918,7 @@ module.exports = {
     toggleService,
     transferFile,
     touch,
-    swipeSimple,
-    swipeCustom,
+    swipeScroll,
     screenShot,
     pressKey,
     typeText,
@@ -646,5 +930,7 @@ module.exports = {
     adbShell,
     generate2FA,
     elementExists,
-    getAttribute
+    getAttribute,
+    imapReadMail,
+    actionFile
 }  

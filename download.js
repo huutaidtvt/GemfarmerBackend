@@ -10,22 +10,22 @@ module.exports.DownloadFile = async function (url, pathSave, fileName, mainWindo
     directory: pathSave,
     fileName: fileName,
     cloneFiles: false,
-  //  skipExistingFileName:true,
-    onError:(err)=>{console.log(err)},
+    //  skipExistingFileName:true,
+    onError: (err) => { console.log(err) },
     onProgress: function (percentage, chunk, remainingSize) {
-     // console.log({percentage:percentage,fileName:fileName})
-     if(mainWindow){
-      mainWindow.webContents.send(eventName,{percentage:percentage,fileName:fileName});
-     }
-     
-       if ( percentage*1 == 100) {
-       if(getExtension(fileName)==".zip"){
-        setTimeout(()=>{
-          const zip = new AdmZip(`${pathSave}\\${fileName}`);       
-          zip.extractAllTo(pathSave,true);
-        // setTimeout(()=>{fs.unlinkSync(`${pathSave}\\${fileName}`)},5000) 
-        },1000)
-      } 
+      // console.log({percentage:percentage,fileName:fileName})
+      if (mainWindow) {
+        mainWindow.webContents.send(eventName, { percentage: percentage, fileName: fileName });
+      }
+
+      if (percentage * 1 == 100) {
+        if (getExtension(fileName) == ".zip") {
+          setTimeout(() => {
+            const zip = new AdmZip(`${pathSave}\\${fileName}`);
+            zip.extractAllTo(pathSave, true);
+            // setTimeout(()=>{fs.unlinkSync(`${pathSave}\\${fileName}`)},5000) 
+          }, 1000)
+        }
 
       }
     },
