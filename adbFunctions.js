@@ -904,6 +904,8 @@ async function typeText(ws, selector, seconds = 10, text) {
     }, seconds * 1000);
 }
 
+
+
 module.exports = {
     startApp,
     stopApp,
