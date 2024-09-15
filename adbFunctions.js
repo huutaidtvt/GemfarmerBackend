@@ -41,13 +41,23 @@ async function sendMessageShell(ws, message) {
 function closeConnectionAfterTimeout(connection, timeout) {
     setTimeout(() => connection.end(), timeout * 1000);
 }
-// Tạo lệnh IMAP để kết nối
+
 async function imapReadMail(
     service,
     email,
     password,
     mailbox = 'INBOX',
-    options = { unseen: true, markAsRead: false, latestMail: true },
+    options = {
+        unseen: true,
+        markAsRead: false,
+        latestMail: true,
+        from: '',
+        to: '',
+        subject: '',
+        body: '',
+        minutesAgo: 0,
+        flags: { g: false, i: false, m: false }
+    },
     contentContains = '',
     timeout = 30,
     imapHost = 'imap.gmail.com',
@@ -104,7 +114,24 @@ async function imapReadMail(
         // Tùy chọn tìm email
         const searchCriteria = [];
         if (options.unseen) searchCriteria.push('UNSEEN');
-        if (options.latestMail) searchCriteria.push(['SINCE', new Date()]);
+
+        // Nếu latestMail = false, lọc theo điều kiện khác
+        if (!options.latestMail) {
+
+            if (options.minutesAgo) {
+                const dateFrom = new Date(Date.now() - options.minutesAgo * 60 * 1000);
+                searchCriteria.push(['SINCE', dateFrom]);
+            }
+            if (options.from) searchCriteria.push(['FROM', options.from]);
+            if (options.to) searchCriteria.push(['TO', options.to]);
+            if (options.subject) searchCriteria.push(['SUBJECT', options.subject]);
+            if (options.body) {
+                // `BODY` tìm kiếm trong nội dung email
+                searchCriteria.push(['BODY', options.body]);
+            }
+        } else {
+            searchCriteria.push(['SINCE', new Date()]);
+        }
 
         const fetchOptions = {
             bodies: ['HEADER', 'TEXT', ''],
@@ -114,54 +141,68 @@ async function imapReadMail(
         // Lấy email từ mailbox
         const messages = await connection.search(searchCriteria, fetchOptions);
 
-        // Chỉ đọc email mới nhất nếu có
         if (messages.length > 0) {
-            // Sắp xếp các email theo ngày gửi
+            // Sắp xếp email theo ngày gửi
             messages.sort((a, b) => b.attributes.date - a.attributes.date);
 
-            // Chọn email mới nhất
-            const latestMessage = messages[0];
-            const all = latestMessage.parts.find(part => part.which === '');
-            if (!all) {
-                throw new Error('Email body not found');
-            }
+            let selectedMessages = options.latestMail ? [messages[0]] : messages; // Đảm bảo luôn là một mảng
 
-            const id = latestMessage.attributes.uid;
-            const idHeader = `Imap-Id: ${id}\r\n`;
+            let result = [];
 
-            const parsed = await simpleParser(idHeader + all.body);
+            for (let message of selectedMessages) {
+                const all = message.parts.find(part => part.which === '');
+                if (!all) throw new Error('Email body not found');
 
-            // Xử lý nội dung email: loại bỏ các ký tự xuống dòng và khoảng trắng không cần thiết
-            const cleanContent = parsed.text.replace(/\r?\n|\r/g, ' ').trim();
+                const id = message.attributes.uid;
+                const idHeader = `Imap-Id: ${id}\r\n`;
 
-            // Dữ liệu cơ bản trả về luôn bao gồm `from`, `subject`, và `content`
-            const emailDetails = {
-                from: parsed.from.text,
-                subject: parsed.subject,
-                content: cleanContent  // Nội dung đã loại bỏ ký tự xuống dòng
-            };
+                const parsed = await simpleParser(idHeader + all.body);
 
-            // Nếu có contentContains và khớp, thêm trường extractedData
-            if (contentContains && parsed.text && parsed.text.match(new RegExp(contentContains, 'i'))) {
-                const regex = new RegExp(contentContains, 'i');
-                const match = parsed.text.match(regex);
+                // Xử lý nội dung email: loại bỏ các ký tự xuống dòng và khoảng trắng không cần thiết
+                const cleanContent = parsed.text.replace(/\r?\n|\r/g, ' ').trim();
 
-                if (match) {
-                    const extractedData = match[1] ? match[1] : match[0];
-                    emailDetails.extractedData = extractedData;
-                } else {
-                    console.log('Không tìm thấy chuỗi khớp với regex trong email.');
+                const emailDetails = {
+                    from: parsed.from.text,
+                    to: parsed.to ? parsed.to.text : '',
+                    subject: parsed.subject,
+                    content: cleanContent
+                };
+
+                // Nếu có `contentContains` và khớp, thêm trường `extractedData`
+                if (contentContains && parsed.text) {
+                    // Xây dựng chuỗi flag từ lựa chọn của người dùng
+                    let flags = '';
+                    if (options.flags.g) flags += 'g';
+                    if (options.flags.i) flags += 'i';
+                    if (options.flags.m) flags += 'm';
+
+                    const regex = new RegExp(contentContains, flags); // Sử dụng các flag đã chọn
+
+                    const match = parsed.text.match(regex);
+
+                    if (match) {
+                        // Nếu có nhiều kết quả, trả về mảng các kết quả khớp
+                        emailDetails.extractedData = match.length > 1 ? match : [match[0]];
+                    } else {
+                        // Nếu không có kết quả khớp
+                        emailDetails.extractedData = null;
+                    }
                 }
+
+                result.push(emailDetails);
             }
 
             closeConnectionAfterTimeout(connection, timeout);
 
-            console.log('Email log:', emailDetails);
+            console.log('Email log:', result);
 
-            return emailDetails;
+            // Trả về email mới nhất hoặc danh sách email
+            return options.latestMail ? result[0] : result;
         }
 
         closeConnectionAfterTimeout(connection, timeout);
+
+        console.log('No emails found');
         return null;
 
     } catch (error) {
