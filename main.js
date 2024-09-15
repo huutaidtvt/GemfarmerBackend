@@ -135,13 +135,13 @@ async function createWindow() {
     // await inStallApp(client, "C:\\Users\\MY ASUS\\Downloads\\Twitter (X)_10.57.0-release.0_apkcombo.com.apk");
 
     // await imapReadMail(
-    //   'gmail',                                              // Dịch vụ email: Gmail
-    //   'quangcover2k3az@gmail.com',                          // Địa chỉ email
-    //   'zxko urhg nakh ntwz',                                // Mật khẩu ứng dụng
-    //   'INBOX',                                              // Mailbox: INBOX
-    //   { unseen: true, markAsRead: false, latestMail: true }, // Options
-    //   '\\d+',                                                 // Content mail contains (regex): Important
-    //   30,                                                  // Timeout: 30 giây
+    //   'gmail',
+    //   'quangcover2k3az@gmail.com',
+    //   'zxko urhg nakh ntwz',
+    //   'INBOX',
+    //   { unseen: true, markAsRead: false, latestMail: false, from: 'quanghvph46600@fpt.edu.vn' },
+    //   '\\d+',
+    //   30,
     // )
 
     // await actionFile(
@@ -153,121 +153,147 @@ async function createWindow() {
     //   'new line',
     // );
 
-    createBackup('C:\\Users\\MY ASUS\\Downloads\\profiles', 'C:\\Users\\MY ASUS\\Downloads\\test_bk.zip')
+    // createBackup('C:\\Users\\MY ASUS\\Downloads\\profiles', 'C:\\Users\\MY ASUS\\Downloads\\test_bk.zip')
 
-    // switch (data.type) {
-    //   // Run oke
-    //   case "pressMenu": {
-    //     await pressMenu(client);
-    //     return { success: true, message: "success" }
-    //   }
+    switch (data.type) {
+      // Run oke
+      case "pressMenu": {
+        await pressMenu(client);
+        return { success: true, message: "success" }
+      }
 
-    //   case "pressHome": {
-    //     await pressHome(client);
-    //     return { success: true, message: "success" }
-    //   }
+      case "pressHome": {
+        await pressHome(client);
+        return { success: true, message: "success" }
+      }
 
-    //   case "pressBack": {
-    //     await pressBack(client);
-    //     return { success: true, message: "success" }
-    //   }
+      case "pressBack": {
+        await pressBack(client);
+        return { success: true, message: "success" }
+      }
 
-    //   case "deviceAction": {
-    //     await deviceActions(client, data.data.action);
-    //     return { success: true, message: "success" }
-    //   }
+      case "deviceAction": {
+        await deviceActions(client, data.data.action);
+        return { success: true, message: "success" }
+      }
 
-    //   case "startApp": {
-    //     await startApp(client, data.data.packageName);
-    //     return { success: true, message: "success" }
-    //   }
+      case "startApp": {
+        await startApp(client, data.data.packageName);
+        return { success: true, message: "success" }
+      }
 
-    //   case "stopApp": {
-    //     await stopApp(client, data.data.packageName);
-    //     return { success: true, message: "success" }
-    //   }
+      case "stopApp": {
+        await stopApp(client, data.data.packageName);
+        return { success: true, message: "success" }
+      }
 
-    //   case "uninstallApp": {
-    //     await unInStallApp(client, data.data.ValuePackageName);
-    //     return { success: true, message: "success" }
-    //   }
+      case "uninstallApp": {
+        await unInStallApp(client, data.data.ValuePackageName);
+        return { success: true, message: "success" }
+      }
 
-    //   case "swipeScroll": {
-    //     await swipeScroll(client, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
-    //     return { success: true, message: "success" }
-    //   }
+      case "swipeScroll": {
+        await swipeScroll(client, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
+        return { success: true, message: "success" }
+      }
 
-    //   case "typeText": {
-    //     await typeText(client, data.data.selector, data.data.timeout, data.data.inputText);
-    //     return { success: true, message: "success" }
-    //   }
+      case "typeText": {
+        await typeText(client, data.data.selector, data.data.timeout, data.data.inputText);
+        return { success: true, message: "success" }
+      }
 
-    //   case "tonggleService": {
-    //     await toggleService(client, data.data.action);
-    //     return { success: true, message: "success" }
-    //   }
+      case "tonggleService": {
+        await toggleService(client, data.data.action);
+        return { success: true, message: "success" }
+      }
 
-    //   case "pressKeyPhone": {
-    //     await pressKey(client, data.data.keyCode);
-    //     return { success: true, message: "success" }
-    //   }
+      case "pressKeyPhone": {
+        await pressKey(client, data.data.keyCode);
+        return { success: true, message: "success" }
+      }
 
-    //   case "adbShellCommand": {
-    //     await adbShell(client, data.data.command);
-    //     return { success: true, message: "success" }
-    //   }
+      case "adbShellCommand": {
+        await adbShell(client, data.data.command);
+        return { success: true, message: "success" }
+      }
 
-    //   case "touch": {
-    //     await touch(client, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
-    //     return { success: true, message: "success" }
-    //   }
+      case "touch": {
+        await touch(client, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
+        return { success: true, message: "success" }
+      }
 
-    //   case "fileAction": {
-    //     actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
-    //     return { success: true, message: "success" }
-    //   }
+      case "fileAction": {
+        actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
+        return { success: true, message: "success" }
+      }
 
-    //   //Cần trả ra tb
+      case "imapReadMail": {
+        await imapReadMail(
+          data.data.emailService,
+          data.data.email,
+          data.data.password,
+          data.data.mailBox,
+          {
+            unseen: data.data.isUnseen,
+            markAsRead: data.data.isMark,
+            latestMail: data.data.isGetLatest,
+            from: data.data.includesFrom,
+            to: data.data.includesTo,
+            subject: data.data.includesSubject,
+            body: data.data.includesBody,
+            minutesAgo: data.data.readEmailMinute,
+            flags: { g: data.data.isGlobal, i: data.data.isCaseInsensitive, m: data.data.isMultiline }
+          },
+          data.data.regex,
+          data.data.timeOut,
+          data.data.imapHost,
+          data.data.imapPort,
+          data.data.isTLS
+        )
 
-    //   case "getAttribute": {
-    //     const result = await getAttribute(client, data.data.xPath, data.data.name, data.data.timeOut);
-    //     return { success: true, message: "success", data: result }
-    //   }
+        return { success: true, message: "success" }
 
-    //   case "isInstallApp": {
-    //     const result = await isInStallApp(client, data.data.packageName);
-    //     return { success: true, message: "success", data: result }
-    //   }
+      }
 
-    //   case "ElementExists": {
-    //     const result = await elementExists(client, data.data.xPath, data.data.timeOut);
-    //     return { success: true, message: "success", data: result }
-    //   }
+      case "getAttribute": {
+        const result = await getAttribute(client, data.data.xPath, data.data.name, data.data.timeOut);
+        return { success: true, message: "success", data: result }
+      }
 
-    //   case "generate2FA": {
-    //     const result = await generate2FA(client, data.data.secretKey);
-    //     return { success: true, message: "success", data: result }
-    //   }
+      case "isInstallApp": {
+        const result = await isInStallApp(client, data.data.packageName);
+        return { success: true, message: "success", data: result }
+      }
 
-    //   // Đang lỗi chưa fix được
+      case "ElementExists": {
+        const result = await elementExists(client, data.data.xPath, data.data.timeOut);
+        return { success: true, message: "success", data: result }
+      }
 
-    //   case "inStallApp": {
-    //     await inStallApp(client, data.data.apkPath);
-    //     return { success: true, message: "success" }
-    //   }
+      case "generate2FA": {
+        const result = await generate2FA(client, data.data.secretKey);
+        return { success: true, message: "success", data: result }
+      }
 
-    //   case "transferFile": {
-    //     await transferFile(client, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
-    //     return { success: true, message: "success" }
-    //   }
+      // Đang lỗi chưa fix được
 
-    //   case "screenShot": {
-    //     await screenShot(client, data.data.options);
-    //     return { success: true, message: "success" }
-    //   }
+      case "inStallApp": {
+        await inStallApp(client, data.data.apkPath);
+        return { success: true, message: "success" }
+      }
 
-    // }
-    // return { success: true, message: "success" }
+      case "transferFile": {
+        await transferFile(client, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
+        return { success: true, message: "success" }
+      }
+
+      case "screenShot": {
+        await screenShot(client, data.data.options);
+        return { success: true, message: "success" }
+      }
+
+    }
+    return { success: true, message: "success" }
   })
 
   ipcMain.handle("checkLicense", async (event, data) => {
