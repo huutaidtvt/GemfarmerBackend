@@ -1,5 +1,5 @@
 {
-  "name": "GemLogin",
+  "name": "GemFamer",
   "version": "1.0.10",
   "description": "Gemlogin automation",
   "main": "main.js",
@@ -8,25 +8,45 @@
     "start": "electron .",
     "pakage": "build",
     "pack": "electron-builder --windows",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "rebuild": "electron-rebuild"
   },
   "dependencies": {
+    "@dead50f7/adbkit": "^2.11.5",
     "adm-zip": "^0.5.14",
-    "crypto": "^1.0.1",
+    "body-parser": "^1.20.2",
     "electron-builder-squirrel-windows": "^24.13.3",
+    "express": "^4.19.2",
+    "fs-extra": "^11.2.0",
+    "https-proxy-agent": "^7.0.5",
+    "imap-simple": "^5.1.0",
+    "jimp": "^1.6.0",
+    "mailparser": "^3.7.1",
     "md5": "^2.3.0",
     "mkdirp": "^3.0.1",
     "node-fetch": "^2.7.0",
+    "node-pty": "^1.0.0",
     "nodejs-file-downloader": "^4.13.0",
     "os-paths": "^7.4.0",
+    "portfinder": "^1.0.32",
+    "request": "^2.88.2",
     "sequelize": "^6.37.3",
+    "socks-proxy-agent": "^8.0.4",
+    "speakeasy": "^2.0.0",
     "sqlite3": "5.1.6",
-    "systeminformation": "^5.23.5",
+    "swagger-ui-express": "^5.0.1",
+    "systeminformation": "^5.23.2",
+    "tslib": "^2.7.0",
+    "ua-parser-js": "^1.0.38",
     "ws": "^8.18.0",
-    "xlsx-populate": "^1.21.0"
+    "xlsx-populate": "^1.21.0",
+    "xmldom": "^0.6.0",
+    "xpath": "^0.0.34",
+    "yaku": "^1.0.1",
+    "yaml": "^2.5.1"
   },
   "build": {
-    "productName": "gemLogin",
+    "productName": "GemFamer",
     "extraFiles": [
       {
         "from": "D:/genlogin/bin",
@@ -48,8 +68,9 @@
     ]
   },
   "devDependencies": {
-    "electron": "^32.0.1",
+    "electron": "^30.2.0",
     "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
     "electron-reloader": "^1.2.3"
   }
 }

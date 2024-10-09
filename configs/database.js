@@ -7,7 +7,7 @@ const sequelize = new Sequelize({
     storage:  '.\\db.db',
     username: "gemlogin",
     password: "dKlM@4r%",
-    logging: false
+   // logging: false
   });
 
 // Kiểm tra kết nối
