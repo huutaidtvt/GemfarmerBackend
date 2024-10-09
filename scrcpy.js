@@ -1,32 +1,12 @@
 
 const { exec, execSync, spawn, fork } = require('child_process');
 const path = require('path');
-const { runScrcpy } = require(path.join(__dirname,"dist//srcpy"))
+const { runScrcpy } = require(path.join(__dirname,"scrcpyServer/srcpy"))
 
 let scrcpyProcess = null;
 
-const wsScrcpyPath = __dirname + "\\dist";//path.join(__dirname, 'ws-scrcpy/dist/index.js');
 function startScrcpy() {
     runScrcpy();
-    // if (scrcpyProcess) {
-    //     console.log('ws-scrcpy is already running.');
-    //     return;
-    // }
-
-    // //scrcpyProcess =exec("npm start",{cwd:wsScrcpyPath});
-    // scrcpyProcess=fork('index.js',{cwd:wsScrcpyPath})
-    // scrcpyProcess.on('message', (message) => {
-    //     console.log(`ws-scrcpy message: ${message}`);
-    // });
-    // scrcpyProcess.on('error', (error) => {
-    //     console.error(`Error starting ws-scrcpy: ${error}`);
-    // });
-    // scrcpyProcess.on('exit', (code) => {
-    //     console.log(`ws-scrcpy exited with code ${code}`);
-    //     scrcpyProcess = null;
-    // });
-    // console.log('ws-scrcpy started.');
-
 }
 function stopScrcpy() {
     if (!scrcpyProcess) {
@@ -47,5 +27,4 @@ function stopScrcpy() {
 module.exports = {
     startScrcpy,
     stopScrcpy,
-
 }  
