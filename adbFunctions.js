@@ -12,17 +12,17 @@ async function sendMessageShell(ws, message) {
         let dataSend = createBuffer(32, 1, getBufferData(message));
         let dataResponse;
         ws.on('message', (data) => {
-            console.log("data===>",data.toString())
+            console.log("data===>", data.toString())
             let strHex = toHexString(data);
             if (strHex.endsWith("3a2f202420")) {
                 ws.removeAllListeners();
-                resolve({success:true,message:"success",data:dataResponse});
+                resolve({ success: true, message: "success", data: dataResponse });
             }
-            else{
-                dataResponse=data.toString().substring(5);
+            else {
+                dataResponse = data.toString().substring(5);
             }
         });
-        setTimeout(()=>{resolve({success:false,message:"timeout"})},5000)
+        setTimeout(() => { resolve({ success: false, message: "timeout" }) }, 5000)
         ws.send(dataSend);
         ws.send([0x20, 0x01, 0x00, 0x00, 0x00, 0x0d, 0x0a]);
     })
@@ -568,19 +568,20 @@ async function toggleData(ws) {
     // Kiểm tra trạng thái của Mobile Data
     if (res.includes('0') || res.includes('1')) {
         console.log('Processing toggle');
+        // Kiểm tra trạng thái của Mobile Data
+        if (res.includes('0') || res.includes('1')) {
+            console.log('Processing toggle');
 
-        const isDataEnabled = res[0] === '1';
+            const isDataEnabled = res[0] === '1';
 
-        // Dựa trên trạng thái hiện tại của Mobile Data, xác định lệnh bật/tắt
-        const command = isDataEnabled
-            ? 'svc data disable'  // Tắt Mobile Data
-            : 'svc data enable';  // Bật Mobile Data
+            // Dựa trên trạng thái hiện tại của Mobile Data, xác định lệnh bật/tắt
+            const command = isDataEnabled
+                ? 'svc data disable'  // Tắt Mobile Data
+                : 'svc data enable';  // Bật Mobile Data
+            await sendMessageShell(ws, command);
 
-        // Gửi lệnh bật/tắt Mobile Data qua WebSocket
-        await sendMessageShell(ws, command);
-
+        }
     }
-
 }
 async function toggleLocation(ws) {
     // Gửi lệnh kiểm tra trạng thái Location qua WebSocket
@@ -605,13 +606,21 @@ async function toggleService(ws, service) {
     switch (service) {
         case 'airplane':
             toggleAirplaneMode(ws);
+        case 'airplane':
+            toggleAirplaneMode(ws);
             break;
+        case 'wifi':
+            toggleWifi(ws);
         case 'wifi':
             toggleWifi(ws);
             break;
         case 'network':
             toggleData(ws);
+        case 'network':
+            toggleData(ws);
             break;
+        case 'location':
+            toggleLocation(ws);
         case 'location':
             toggleLocation(ws);
             break;
@@ -621,12 +630,18 @@ async function toggleService(ws, service) {
 }
 async function transferFile(ws, action, localFilePath, remoteFilePath) {
 
-    let command;
+    async function transferFile(ws, action, localFilePath, remoteFilePath) {
 
-    if (action === 'push') {
-        command = `push "${localFilePath}" "${remoteFilePath}"`;
-    } else if (action === 'pull') {
-        command = `pull "${remoteFilePath}" "${localFilePath}"`;
+        let command;
+
+
+        if (action === 'push') {
+            command = `push "${localFilePath}" "${remoteFilePath}"`;
+        } else if (action === 'pull') {
+            command = `pull "${remoteFilePath}" "${localFilePath}"`;
+        }
+
+        await sendMessageShell(ws, command);
     }
 
     await sendMessageShell(ws, command);
@@ -636,6 +651,11 @@ async function transferFile(ws, action, localFilePath, remoteFilePath) {
 // async function touch(ws, xpathQuery, timeOut = 10, touchType = 'Normal', delay = 100) {
 //     console.log(`Touch: ${xpathQuery}, ${timeOut}, ${touchType}, ${delay}`);
 
+// async function touch(ws, xpathQuery, timeOut = 10, touchType = 'Normal', delay = 100) {
+//     console.log(`Touch: ${xpathQuery}, ${timeOut}, ${touchType}, ${delay}`);
+
+//     // Gửi lệnh để tạo bản dump của giao diện người dùng
+//     await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
 //     // Gửi lệnh để tạo bản dump của giao diện người dùng
 //     await sendMessageShell(ws, `uiautomator dump /sdcard/ui.xml`);
 
@@ -694,6 +714,7 @@ async function transferFile(ws, action, localFilePath, remoteFilePath) {
 //     }
 // }
 
+
 async function touch(ws, selectBy = 'selector', options, touchType = 'Normal', delay = 100) {
     let x, y;
 
@@ -720,52 +741,59 @@ async function touch(ws, selectBy = 'selector', options, touchType = 'Normal', d
                 const boundsAttr = nodes[0].getAttribute('bounds');
                 const boundsRegex = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/;
                 const match = boundsAttr.match(boundsRegex);
+                if (nodes.length > 0) {
+                    console.log(`Element found: ${nodes.length}`);
 
-                if (match) {
-                    const [left, top, right, bottom] = match.slice(1).map(Number);
-                    x = Math.floor((left + right) / 2);
-                    y = Math.floor((top + bottom) / 2);
+                    const boundsAttr = nodes[0].getAttribute('bounds');
+                    const boundsRegex = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/;
+                    const match = boundsAttr.match(boundsRegex);
+
+                    if (match) {
+                        const [left, top, right, bottom] = match.slice(1).map(Number);
+                        x = Math.floor((left + right) / 2);
+                        y = Math.floor((top + bottom) / 2);
+                    }
+                } else {
+                    console.log("Element not found for the given XPath.");
+                    return;
                 }
             } else {
-                console.log("Element not found for the given XPath.");
+                console.log("Invalid XML format.");
                 return;
             }
+        } else if (selectBy === 'coordinate') {
+            const { xCoordinate, yCoordinate } = options
+            // Sử dụng tọa độ trực tiếp từ tham số đầu vào
+            x = xCoordinate;
+            y = yCoordinate;
+            console.log(`Using provided coordinates: X: ${x}, Y: ${y}`);
         } else {
-            console.log("Invalid XML format.");
+            console.log("Invalid SelectBy option. Use 'selector' or 'coordinates'.");
             return;
         }
-    } else if (selectBy === 'coordinate') {
-        const { xCoordinate, yCoordinate } = options
-        // Sử dụng tọa độ trực tiếp từ tham số đầu vào
-        x = xCoordinate;
-        y = yCoordinate;
-        console.log(`Using provided coordinates: X: ${x}, Y: ${y}`);
-    } else {
-        console.log("Invalid SelectBy option. Use 'selector' or 'coordinates'.");
-        return;
+
+        const timeOutMilliseconds = options.timeOut * 1000;
+
+        console.log(`Touching element with coordinates: X: ${x}, Y: ${y}`);
+
+        let touchCommand;
+        switch (touchType) {
+            case 'Long':
+                touchCommand = `input swipe ${x} ${y} ${x} ${y} ${timeOutMilliseconds}`;
+                break;
+            case 'Double':
+                touchCommand = `input tap ${x} ${y} && input tap ${x} ${y}`;
+                break;
+            default:
+                touchCommand = `input tap ${x} ${y}`;
+                break;
+        }
+
+        setTimeout(() => {
+            sendMessageShell(ws, touchCommand);
+        }, delay);
+
     }
-
-    const timeOutMilliseconds = options.timeOut * 1000;
-
-    console.log(`Touching element with coordinates: X: ${x}, Y: ${y}`);
-
-    let touchCommand;
-    switch (touchType) {
-        case 'Long':
-            touchCommand = `input swipe ${x} ${y} ${x} ${y} ${timeOutMilliseconds}`;
-            break;
-        case 'Double':
-            touchCommand = `input tap ${x} ${y} && input tap ${x} ${y}`;
-            break;
-        default:
-            touchCommand = `input tap ${x} ${y}`;
-            break;
-    }
-
-    setTimeout(() => {
-        sendMessageShell(ws, touchCommand);
-    }, delay);
-
 }
 // async function screenShot(event, options) {
 
@@ -798,11 +826,29 @@ async function touch(ws, selectBy = 'selector', options, touchType = 'Normal', d
 //         // Sử dụng dấu gạch chéo cho đường dẫn trên Windows
 //         const pullCommand = `adb pull /sdcard/screenshot.png "${localScreenshotPath.replace(/\\/g, '/')}"`;
 //         execSync(pullCommand);
+//         // Bước 2: Tải ảnh chụp màn hình về máy tính
+//         console.log('Pulling screenshot...');
+//         // Sử dụng dấu gạch chéo cho đường dẫn trên Windows
+//         const pullCommand = `adb pull /sdcard/screenshot.png "${localScreenshotPath.replace(/\\/g, '/')}"`;
+//         execSync(pullCommand);
 
 //         // Bước 3: Xóa ảnh chụp màn hình khỏi thiết bị sau khi đã tải về
 //         const removeCommand = 'rm /sdcard/screenshot.png';
 //         sendMessageShell(removeCommand);
+//         // Bước 3: Xóa ảnh chụp màn hình khỏi thiết bị sau khi đã tải về
+//         const removeCommand = 'rm /sdcard/screenshot.png';
+//         sendMessageShell(removeCommand);
 
+//         // Bước 4: Xử lý cắt ảnh nếu được yêu cầu
+//         if (crop) {
+//             console.log('Cropping screenshot...');
+//             const image = await Jimp.read(localScreenshotPath);
+//             const width = endX - startX;
+//             const height = endY - startY;
+//             await image
+//                 .crop(startX, startY, width, height)
+//                 .writeAsync(localScreenshotPath.replace('.png', '_cropped.png'));
+//         }
 //         // Bước 4: Xử lý cắt ảnh nếu được yêu cầu
 //         if (crop) {
 //             console.log('Cropping screenshot...');
@@ -965,10 +1011,15 @@ module.exports = {
     // deviceManager,
     // getDevices,
     // deleteDevices,
-    adbShell,
+    //adbShell,
+    generate2FA,
+    elementExists,
+    getAttribute,
+    imapReadMail,
+    actionFile,
     generate2FA,
     elementExists,
     getAttribute,
     imapReadMail,
     actionFile
-}  
+}

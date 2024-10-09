@@ -6,8 +6,8 @@ var splashWindow = null;
 var mainWindow = null;
 let deviceValid;
 let deviceCode;
-//const pathWeb = path.join("D:\\genlogin\\farmer\\gemfarmer", "build");
-const pathWeb = path.join(process.resourcesPath, "..\\..\\build");
+const pathWeb = path.join("D:\\genlogin\\farmer\\gemfarmer", "build");
+//const pathWeb = path.join(process.resourcesPath, "..\\..\\build");
 const pathPreload = path.join(__dirname, 'preload.js');
 const osPaths = require('os-paths/cjs');
 const pathRoot = osPaths.home() + "\\.gemFamer";
@@ -46,6 +46,10 @@ async function createWindow() {
   //   exec(`taskkill /im gemLogin.exe /f`, (err, stdout, stderr) => {
   //   })
   // }
+
+  // listApp(2)
+  // searchApp("panda")
+  // downloadAPK("com.zing.zalo")
 
   mainWindow = new BrowserWindow({
     width: 1500,
@@ -103,159 +107,160 @@ async function createWindow() {
       }
     }
   });
+
   ipcMain.handle("sendData", async (event, data) => {
     const deviceId = data.deviceId;
     let client;
     let device = listDevice.find(c => c.deviceId == deviceId);
     if (!device) {
-       client = await createConnect(deviceId);
+      client = await createConnect(deviceId);
       listDevice.push({ deviceId, client });
     }
     else {
       client = device.client;
     }
-    
+
     // getAttribute(client, "", "", "", "")
-      switch (data.type) {
-        // Run oke
-        case "pressMenu": {
-          await pressMenu(client);
-          return { success: true, message: "success" }
-        }
-  
-        case "pressHome": {
-          await pressHome(client);
-          return { success: true, message: "success" }
-        }
-  
-        case "pressBack": {
-          await pressBack(client);
-          return { success: true, message: "success" }
-        }
-  
-        case "deviceAction": {
-          await deviceActions(client, data.data.action);
-          return { success: true, message: "success" }
-        }
-  
-        case "startApp": {
-         let response= await startApp(client, data.data.packageName);
-         console.log(response);
-          return { success: true, message: "success" }
-        }
-  
-        case "stopApp": {
-         let response= await stopApp(client, data.data.packageName);
-          console.log(response);
-          return { success: true, message: "success" }
-        }
-  
-        case "uninstallApp": {
-          await unInStallApp(client, data.data.ValuePackageName);
-          return { success: true, message: "success" }
-        }
-  
-        case "swipeScroll": {
-          await swipeScroll(client, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
-          return { success: true, message: "success" }
-        }
-  
-        case "typeText": {
-          await typeText(client, data.data.selector, data.data.timeout, data.data.inputText);
-          return { success: true, message: "success" }
-        }
-  
-        case "tonggleService": {
-          await toggleService(client, data.data.action);
-          return { success: true, message: "success" }
-        }
-  
-        case "pressKeyPhone": {
-          await pressKey(client, data.data.keyCode);
-          return { success: true, message: "success" }
-        }
-  
-        case "adbShellCommand": {
-          await adbShell(client, data.data.command);
-          return { success: true, message: "success" }
-        }
-  
-        case "touch": {
-          await touch(client, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
-          return { success: true, message: "success" }
-        }
-  
-        case "fileAction": {
-          actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
-          return { success: true, message: "success" }
-        }
-  
-        case "imapReadMail": {
-          await imapReadMail(
-            data.data.emailService,
-            data.data.email,
-            data.data.password,
-            data.data.mailBox,
-            {
-              unseen: data.data.isUnseen,
-              markAsRead: data.data.isMark,
-              latestMail: data.data.isGetLatest,
-              from: data.data.includesFrom,
-              to: data.data.includesTo,
-              subject: data.data.includesSubject,
-              body: data.data.includesBody,
-              minutesAgo: data.data.readEmailMinute,
-              flags: { g: data.data.isGlobal, i: data.data.isCaseInsensitive, m: data.data.isMultiline }
-            },
-            data.data.regex,
-            data.data.timeOut,
-            data.data.imapHost,
-            data.data.imapPort,
-            data.data.isTLS
-          )
-  
-          return { success: true, message: "success" }
-  
-        }
-  
-        case "getAttribute": {
-          const result = await getAttribute(client, data.data.xPath, data.data.name, data.data.timeOut);
-          return { success: true, message: "success", data: result }
-        }
-  
-        case "isInstallApp": {
-          const result = await isInStallApp(client, data.data.packageName);
-          return { success: true, message: "success", data: result }
-        }
-  
-        case "ElementExists": {
-          const result = await elementExists(client, data.data.xPath, data.data.timeOut);
-          return { success: true, message: "success", data: result }
-        }
-  
-        case "generate2FA": {
-          const result = await generate2FA(client, data.data.secretKey);
-          return { success: true, message: "success", data: result }
-        }
-  
-        // Đang lỗi chưa fix được
-  
-        case "inStallApp": {
-          await inStallApp(client, data.data.apkPath);
-          return { success: true, message: "success" }
-        }
-  
-        case "transferFile": {
-          await transferFile(client, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
-          return { success: true, message: "success" }
-        }
-  
-        case "screenShot": {
-          await screenShot(client, data.data.options);
-          return { success: true, message: "success" }
-        }
-  
+    switch (data.type) {
+      // Run oke
+      case "pressMenu": {
+        await pressMenu(client);
+        return { success: true, message: "success" }
       }
+
+      case "pressHome": {
+        await pressHome(client);
+        return { success: true, message: "success" }
+      }
+
+      case "pressBack": {
+        await pressBack(client);
+        return { success: true, message: "success" }
+      }
+
+      case "deviceAction": {
+        await deviceActions(client, data.data.action);
+        return { success: true, message: "success" }
+      }
+
+      case "startApp": {
+        let response = await startApp(client, data.data.packageName);
+        console.log(response);
+        return { success: true, message: "success" }
+      }
+
+      case "stopApp": {
+        let response = await stopApp(client, data.data.packageName);
+        console.log(response);
+        return { success: true, message: "success" }
+      }
+
+      case "uninstallApp": {
+        await unInStallApp(client, data.data.ValuePackageName);
+        return { success: true, message: "success" }
+      }
+
+      case "swipeScroll": {
+        await swipeScroll(client, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
+        return { success: true, message: "success" }
+      }
+
+      case "typeText": {
+        await typeText(client, data.data.selector, data.data.timeout, data.data.inputText);
+        return { success: true, message: "success" }
+      }
+
+      case "tonggleService": {
+        await toggleService(client, data.data.action);
+        return { success: true, message: "success" }
+      }
+
+      case "pressKeyPhone": {
+        await pressKey(client, data.data.keyCode);
+        return { success: true, message: "success" }
+      }
+
+      case "adbShellCommand": {
+        await adbShell(client, data.data.command);
+        return { success: true, message: "success" }
+      }
+
+      case "touch": {
+        await touch(client, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
+        return { success: true, message: "success" }
+      }
+
+      case "fileAction": {
+        actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
+        return { success: true, message: "success" }
+      }
+
+      case "imapReadMail": {
+        await imapReadMail(
+          data.data.emailService,
+          data.data.email,
+          data.data.password,
+          data.data.mailBox,
+          {
+            unseen: data.data.isUnseen,
+            markAsRead: data.data.isMark,
+            latestMail: data.data.isGetLatest,
+            from: data.data.includesFrom,
+            to: data.data.includesTo,
+            subject: data.data.includesSubject,
+            body: data.data.includesBody,
+            minutesAgo: data.data.readEmailMinute,
+            flags: { g: data.data.isGlobal, i: data.data.isCaseInsensitive, m: data.data.isMultiline }
+          },
+          data.data.regex,
+          data.data.timeOut,
+          data.data.imapHost,
+          data.data.imapPort,
+          data.data.isTLS
+        )
+
+        return { success: true, message: "success" }
+
+      }
+
+      case "getAttribute": {
+        const result = await getAttribute(client, data.data.xPath, data.data.name, data.data.timeOut);
+        return { success: true, message: "success", data: result }
+      }
+
+      case "isInstallApp": {
+        const result = await isInStallApp(client, data.data.packageName);
+        return { success: true, message: "success", data: result }
+      }
+
+      case "ElementExists": {
+        const result = await elementExists(client, data.data.xPath, data.data.timeOut);
+        return { success: true, message: "success", data: result }
+      }
+
+      case "generate2FA": {
+        const result = await generate2FA(client, data.data.secretKey);
+        return { success: true, message: "success", data: result }
+      }
+
+      // Đang lỗi chưa fix được
+
+      case "inStallApp": {
+        await inStallApp(client, data.data.apkPath);
+        return { success: true, message: "success" }
+      }
+
+      case "transferFile": {
+        await transferFile(client, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
+        return { success: true, message: "success" }
+      }
+
+      case "screenShot": {
+        await screenShot(client, data.data.options);
+        return { success: true, message: "success" }
+      }
+
+    }
     // console.log(data);
   })
   ipcMain.handle('getIdDevice', async (event, data) => {
@@ -278,6 +283,7 @@ async function createWindow() {
     //   return { success: false, message: error }
     // }
   });
+
   ipcMain.handle('crudScript', async (event, data) => {
     data = JSON.parse(data);
     switch (data.action) {
@@ -335,8 +341,6 @@ async function createWindow() {
     return { success: true, message: "success", data: result };
   })
 }
-
-
 function createSplashWindow() {
   if (splashWindow === null) {
     var imagePath = path.join(__dirname, "splash.jpg");
@@ -535,7 +539,7 @@ async function getDevices() {
 async function createConnect(deviceId) {
   return new Promise((resolve, reject) => {
     let timeOut = setTimeout(() => { reject() }, 10000)
-    let client = new WebSocket('ws://localhost:8000/?action=multiplex');
+    let client = new WebSocket('ws://localhost:8000/?action=multiplex', { maxPayload: 4096 * 10 });
     client.on("open", () => {
       let message = createBuffer(4, 1, getChannelInitData(ChannelCode.SHEL));
       client.send(message);
