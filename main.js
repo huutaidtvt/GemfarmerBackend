@@ -109,16 +109,17 @@ async function createWindow() {
   });
 
   ipcMain.handle("sendData", async (event, data) => {
-    const deviceId = data.deviceId;
-    let client;
-    let device = listDevice.find(c => c.deviceId == deviceId);
-    if (!device) {
-      client = await createConnect(deviceId);
-      listDevice.push({ deviceId, client });
-    }
-    else {
-      client = device.client;
-    }
+    //const deviceId = data.deviceId;
+    let client= data.deviceId;
+    console.log(data)
+    // let device = listDevice.find(c => c.deviceId == deviceId);
+    // if (!device) {
+    //   client = await createConnect(deviceId);
+    //   listDevice.push({ deviceId, client });
+    // }
+    // else {
+    //   client = device.client;
+    // }
 
     // getAttribute(client, "", "", "", "")
     switch (data.type) {
@@ -318,6 +319,7 @@ async function createWindow() {
   ipcMain.handle("initLaucher", async () => {
     {
       await sequelize.sync();
+      Device.update({ status: 'offline'},{ where: { id: { [Op.not]: null } } });
       connectWebSocket(mainWindow);
       initLaucher();
     }
@@ -432,21 +434,6 @@ function connectWebSocket(win) {
             ...rest, // Thêm các trường khác nếu cần thiết
             lastUpdate: new Date() // Cập nhật thời gian cuối cùng
           });
-        }
-        // Lấy danh sách thiết bị hiện tại từ cơ sở dữ liệu
-        const allDevices = await Device.findAll();
-
-        const currentDeviceIds = allDevices.map(device => device.device_id); // Sử dụng `name` vì `id` là UDID
-
-        // Xác định các thiết bị đã không còn trong danh sách mới
-        const offlineDevices = currentDeviceIds.filter(id => !deviceIds.includes(id));
-
-        // Cập nhật trạng thái của các thiết bị không còn trong danh sách mới
-        if (offlineDevices.length > 0) {
-          await Device.update(
-            { status: 'offline' },
-            { where: { name: offlineDevices } } // Sử dụng `name` vì `id` là UDID
-          );
         }
       }
       if (jsonData.type == "device") {
