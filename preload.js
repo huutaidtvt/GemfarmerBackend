@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron/renderer');
+
 contextBridge.exposeInMainWorld('electronAPI', {
   getIdDevice: (data) => ipcRenderer.invoke('getIdDevice', data),
   sendData: (data) => ipcRenderer.invoke('sendData', data),
@@ -12,6 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   quitAndInstall: (data) => ipcRenderer.invoke('quitAndInstall', data),
   initLaucher: (data) => ipcRenderer.invoke('initLaucher', data),
   getDeviceList: (data) => ipcRenderer.invoke('getDeviceList', data),
+
+  searchApp: (data) => ipcRenderer.invoke('searchStore', data),
+  downloadApp: (data) => ipcRenderer.invoke('dowloadApp', data),
+  getListApp: (data) => ipcRenderer.invoke('getListApp', data),
+
   onUpdate: (cb) => {
     ipcRenderer.on('onUpdate', (event, data) => cb(data));
   },
