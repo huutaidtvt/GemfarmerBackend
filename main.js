@@ -110,7 +110,7 @@ async function createWindow() {
 
   ipcMain.handle("sendData", async (event, data) => {
     //const deviceId = data.deviceId;
-    let client= data.deviceId;
+    let client = data.deviceId;
     console.log(data)
     // let device = listDevice.find(c => c.deviceId == deviceId);
     // if (!device) {
@@ -145,15 +145,13 @@ async function createWindow() {
       }
 
       case "startApp": {
-        let response = await startApp(client, data.data.packageName);
-        console.log(response);
-        return { success: true, message: "success" }
+        return await startApp(client, data.data.packageName);
+
       }
 
       case "stopApp": {
-        let response = await stopApp(client, data.data.packageName);
-        console.log(response);
-        return { success: true, message: "success" }
+        return await stopApp(client, data.data.packageName);
+
       }
 
       case "uninstallApp": {
@@ -271,18 +269,18 @@ async function createWindow() {
     return deviceCode;
   });
   ipcMain.handle("checkLicense", async (event, data) => {
-    // try {
-    //   data = JSON.parse(data);
-    //   if (!deviceCode) {
-    //     deviceCode = await license.getIdDevice();
-    //   }
-    //   data.deviceId = deviceCode;
-    //   deviceValid = await license.checkLicense(data);
-    //   return deviceValid;
-    // } catch (error) {
-    //   writelog(error);
-    //   return { success: false, message: error }
-    // }
+    try {
+      data = JSON.parse(data);
+      if (!deviceCode) {
+        deviceCode = await license.getIdDevice();
+      }
+      data.deviceId = deviceCode;
+      deviceValid = await license.checkLicense(data);
+      return deviceValid;
+    } catch (error) {
+      writelog(error);
+      return { success: false, message: error }
+    }
   });
 
   ipcMain.handle('crudScript', async (event, data) => {
@@ -319,7 +317,7 @@ async function createWindow() {
   ipcMain.handle("initLaucher", async () => {
     {
       await sequelize.sync();
-      Device.update({ status: 'offline'},{ where: { id: { [Op.not]: null } } });
+      Device.update({ status: 'offline' }, { where: { id: { [Op.not]: null } } });
       connectWebSocket(mainWindow);
       initLaucher();
     }

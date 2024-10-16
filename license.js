@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const si = require('systeminformation');
 var md5 = require('md5');
 const fetch = require('node-fetch');
+const {appVersion}=require('./defineLocation');
+
 
 module.exports.getIdDevice = async () => {
     let cpu = await getCpucore() + await getSystem();
@@ -35,26 +37,32 @@ decryptData = (encryptedData, key) => {
     return JSON.parse(decrypted + decipher.final('utf8'));
 }
 module.exports.checkLicense = async (data) => {
-    try{
-        const params = {device_code:data.deviceId,app_id:1}
-        let response = await fetch("http://103.139.202.40:8080/api/checkLicense",{
-            method: 'post',
-            body: JSON.stringify(params),
-            headers: {
-                "Authorization": `Bearer ${data.token}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        });
-        console.log(response)
-        if (response.data.success) {
-            let dataDecode = decryptData(response.data.data, data.deviceId);
-            response.data.data = dataDecode;
-            return response.data;
+    try {
+        let headers = {
+            "Authorization": `Bearer ${data.token}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        const params = new URLSearchParams()
+        params.append('device_code', data.deviceId)
+        params.append('app_id', '1');
+        let base_url="https://app.gemlogin.vn";
+        if(appVersion.location=="Thai"){
+            base_url="https://app.gemlogin.io";
+
+        }
+        let response = await fetch(`${base_url}/api/checkLicense`, { method: 'post', headers: headers, body: params });
+        let result = await response.json();
+       
+        if (result.success) {
+            let dataDecode = decryptData(result.data, data.deviceId);
+            result.data = dataDecode;
+            return result;
         }
         else {
-            return response.data;
+            return result;
         }
     } catch (error) {
+        console.log(error);
         return { success: false, message: "error " }
     }
 

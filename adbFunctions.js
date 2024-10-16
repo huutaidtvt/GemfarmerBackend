@@ -9,6 +9,7 @@ const imaps = require('imap-simple');
 const { simpleParser } = require('mailparser');
 const adbPath = path.join(__dirname, "adbTool/adb.exe")
 const { spawn } = require('child_process');
+const { error } = require('console');
 
 // async function sendMessageShell(ws, message) {
 //     return new Promise((resolve, reject) => {
@@ -32,8 +33,9 @@ const { spawn } = require('child_process');
 
 // }
 async function sendMessageShell(uuid, message) {
-    console.log(uuid,message)
+    console.log(uuid, message)
     return new Promise((resolve, reject) => {
+        console.log("command", `${adbPath} -s ${uuid} ${message} `)
         const cmdProcess = spawn(`${adbPath} -s ${uuid} ${message} `, { shell: true });
         let output = '';
 
@@ -43,8 +45,9 @@ async function sendMessageShell(uuid, message) {
         });
         // Xử lý lỗi
         cmdProcess.stderr.on('data', (data) => {
+            console.log("err", data.toString())
             // Gửi thông báo lỗi nếu có
-            reject({
+            resolve({
                 success: false,
                 message: `Error: ${data.toString()}`.trim() // Chuyển đổi dữ liệu thành chuỗi
             });
@@ -52,9 +55,7 @@ async function sendMessageShell(uuid, message) {
 
         // Khi lệnh hoàn thành
         cmdProcess.on('close', (code) => {
-            console.log("end",output)
-
-
+            console.log("end", code)
             resolve({
                 success: true,
                 message: "success",
@@ -478,13 +479,13 @@ async function elementExists(uuid, xpathQuery, seconds = 10) {
     console.log(`ElementExists: ${xpathQuery}, ${seconds}`);
 
     // Gửi lệnh để dump giao diện người dùng
-    await sendMessageShell(uuid, `uiautomator dump /sdcard/ui.xml`);
+    await sendMessageShell(uuid, `shell uiautomator dump /sdcard/ui.xml`);
 
     // Sử dụng setTimeout để chờ một khoảng thời gian trước khi kiểm tra
     setTimeout(async () => {
 
         // Nhận nội dung XML từ thiết bị thông qua WebSocket
-        let result = await sendMessageShell(uuid, `cat /sdcard/ui.xml`);
+        let result = await sendMessageShell(uuid, `shell cat /sdcard/ui.xml`);
 
         // Loại bỏ phần không phải XML nếu cần
         result = result.substring(result.indexOf('<?xml'));
@@ -529,10 +530,23 @@ async function generate2FA(uuid, secretKey) {
 }
 
 async function startApp(uuid, packageName) {
-    await sendMessageShell(uuid, `shell monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`)
+    try {
+        let result = await sendMessageShell(uuid, `shell monkey -p ${packageName} 1`);
+        return { success: true, message: "success" }
+
+    } catch (error) {
+        return { success: false, message: error.message }
+    }
+
 }
 async function stopApp(uuid, packageName) {
-    await sendMessageShell(uuid, `shell am force-stop ${packageName}`);
+    try {
+        await sendMessageShell(uuid, `shell am force-stop ${packageName}`);
+        return { success: true, message: "success" }
+    } catch (error) {
+        return { success: false, message: error.message }
+    }
+
 }
 
 async function unInStallApp(uuid, packageName) {
@@ -542,7 +556,7 @@ async function isInStallApp(uuid, packageName) {
     let isInstalled = await sendMessageShell(uuid, `shell pm list packages | grep  ${packageName}`);
 
     if (isInstalled.includes(packageName)) {
-        console.log(`${packageName} is installed.`);
+        console.log(`${packageName} is installed.`);;
         return true
     } else {
         console.log(`${packageName} is not installed.`);
@@ -686,12 +700,12 @@ async function touch(uuid, selectBy = 'selector', options, touchType = 'Normal',
     if (selectBy === 'selector') {
         const { xpathQuery } = options
         // Gửi lệnh để tạo bản dump của giao diện người dùng
-        await sendMessageShell(uuid, `uiautomator dump /sdcard/ui.xml`);
+        await sendMessageShell(uuid, `shell uiautomator dump /sdcard/ui.xml`);
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Đọc nội dung file XML
-        let result = await sendMessageShell(uuid, `cat /sdcard/ui.xml`);
+        let result = await sendMessageShell(uuid, `shell cat /sdcard/ui.xml`);
         result = result.substring(result.indexOf('<?xml'));
 
         // Kiểm tra xem kết quả có phải là XML không
@@ -794,11 +808,11 @@ async function swipeSimple(uuid, direction) {
         default:
     }
 
-    await sendMessageShell(uuid, `input swipe ${startX} ${startY} ${endX} ${endY}`);
+    await sendMessageShell(uuid, `shell input swipe ${startX} ${startY} ${endX} ${endY}`);
 
 }
 async function swipeCustom(uuid, startX, startY, endX, endY, duration) {
-    await sendMessageShell(uuid, `input swipe ${startX} ${startY} ${endX} ${endY} ${duration}`);
+    await sendMessageShell(uuid, `shell input swipe ${startX} ${startY} ${endX} ${endY} ${duration}`);
 }
 
 async function swipeScroll(uuid, mode, options) {
@@ -812,18 +826,20 @@ async function swipeScroll(uuid, mode, options) {
 }
 
 async function pressKey(uuid, keyCode) {
-    await sendMessageShell(uuid, `input keyevent ${keyCode}`);
+    await sendMessageShell(uuid, `shell input keyevent ${keyCode}`);
 }
 
 async function typeText(uuid, selector, seconds = 10, text) {
     console.log(`Selector: ${selector}, Duration: ${seconds}, Text: ${text}`);
 
     // Gửi lệnh để tạo bản dump của giao diện người dùng
-    await sendMessageShell(uuid, 'uiautomator dump /sdcard/ui.xml');
+    await sendMessageShell(uuid, 'shell uiautomator dump /sdcard/ui.xml');
 
     setTimeout(async () => {
         // Đọc nội dung file XML từ thiết bị
-        let result = await sendMessageShell(uuid, `cat /sdcard/ui.xml`);
+        let result = await sendMessageShell(uuid, `shell cat /sdcard/ui.xml`);
+        result=result.data;
+        console.log(result)
 
         // Loại bỏ phần không phải XML
         result = result.substring(result.indexOf('<?xml'));
@@ -854,11 +870,11 @@ async function typeText(uuid, selector, seconds = 10, text) {
 
                     // Bước 3: Nhấp vào trường để chọn nó
                     console.log(`Tapping on (${x}, ${y})...`);
-                    await sendMessageShell(uuid, `input tap ${x} ${y}`);
+                    await sendMessageShell(uuid, `shell input tap ${x} ${y}`);
 
                     // Bước 4: Nhập văn bản vào trường
                     const escapedText = text.replace(/ /g, '%s'); // Escape khoảng trắng
-                    const typeCommand = `input text "${escapedText}"`;
+                    const typeCommand = `shell input text "${escapedText}"`;
 
                     console.log(`Executing command: ${typeCommand}`);
                     await sendMessageShell(uuid, typeCommand);
