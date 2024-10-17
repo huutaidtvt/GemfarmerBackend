@@ -6,7 +6,7 @@ var splashWindow = null;
 var mainWindow = null;
 let deviceValid;
 let deviceCode;
-const pathWeb = path.join("D:\\genlogin\\farmer\\gemfarmer", "build");
+const pathWeb = path.join("D:\\Electron\\gemfarmer", "build");
 //const pathWeb = path.join(process.resourcesPath, "..\\..\\build");
 const pathPreload = path.join(__dirname, 'preload.js');
 const osPaths = require('os-paths/cjs');
@@ -20,6 +20,11 @@ const Device = require('./models/Device');
 const fs = require('fs');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
 const { createBuffer, getChannelInitData, getBufferData } = require('./createMessage')
+const {
+  listApp,
+  searchApp,
+  downloadAPK
+} = require('./store')
 const { pressBack, pressHome, pressMenu, deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeScroll, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, stopApp, startApp, generate2FA, adbShell, imapReadMail, actionFile } = require('./adbFunctions')
 var listDevice = [];
 let isUpdate = false;
@@ -106,6 +111,24 @@ async function createWindow() {
         e.preventDefault();
       }
     }
+  });
+
+  ipcMain.handle("searchApp", async (event, data) => {
+    console.log("data =>", data);
+    let { key, page, limit } = data;
+    return searchApp(key, page, limit);
+  });
+
+  ipcMain.handle("downloadApp", async (event, data) => {
+    console.log("data =>", data);
+    let { id, version } = data;
+    return await downloadAPK(id, version);
+  });
+
+  ipcMain.handle("getListApp", async (event, data) => {
+    console.log("data =>", data);
+    let { page, limit } = data;
+    return listApp(page, limit);
   });
 
   ipcMain.handle("sendData", async (event, data) => {
