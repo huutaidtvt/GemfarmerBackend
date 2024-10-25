@@ -6,7 +6,10 @@ var splashWindow = null;
 var mainWindow = null;
 let deviceValid;
 let deviceCode;
-const pathWeb = path.join("D:\\Electron\\gemfarmer", "build");
+const pathWeb = path.join("D:\\gemfarmer", "build");
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const fetch = require('node-fetch');
 //const pathWeb = path.join(process.resourcesPath, "..\\..\\build");
 const pathPreload = path.join(__dirname, 'preload.js');
 const osPaths = require('os-paths/cjs');
@@ -17,6 +20,8 @@ const { Sequelize, where, Op } = require('sequelize');
 const sequelize = require('./configs/database');
 const Scripts = require('./models/Script');
 const Device = require('./models/Device');
+const platForm = require(__dirname + '/platform').Platform(sequelize);
+const groupDevices = require(__dirname + '/groupDevices').groupDevices(sequelize);
 const fs = require('fs');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
 const { createBuffer, getChannelInitData, getBufferData } = require('./createMessage')
@@ -330,6 +335,207 @@ async function createWindow() {
       };
     }
   });
+  //create update group
+  ipcMain.handle("crudGroup", async (event, data) => {
+    data = JSON.parse(data);
+    //  console.log(data);
+    switch (data.action) {
+      case "getAll": {
+        try {
+          return await groupDevices.findAll({ raw: true });
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      };
+      case "getProfilesGroup": {
+        try {
+          let result = await Device.findAll({ raw: true, where: { profile_group_id: data.groupId } });
+          return result;
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      }
+      case "create": {
+        try {
+          await groupDevices.create({ name: data.groupData })
+          return { message: "success" };
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      };
+      case "update": {
+        try {
+          console.log('update');
+          await groupDevices.update({ name: data.groupData }, { where: { id: data.groupId } });
+          return { message: "success" };
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      };
+      case "delete": {
+        try {
+          await groupDevices.destroy({ where: { id: data.groupId } })
+          return { message: "success" };
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      };
+      case "assignProfilesGroup": {
+        try {
+          await Device.update({ device_group_id: data.groupId }, { where: { id: { [Op.in]: data.devices } } });
+          return { message: "success" };
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+
+      }
+    }
+  });
+  //platform resource
+  ipcMain.handle("crudPlatform", async (event, data) => {
+    data = JSON.parse(data);
+    //  console.log(data);
+    switch (data.action) {
+      case "getAll": {
+        try {
+          let result = await platForm.findAll({ raw: true });
+          return result;
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      };
+      case "create": {
+        try {
+          await platForm.create({ name: data.name, icon: data.icon })
+          return { message: "success" };
+        }
+        catch (ex) {
+          return { message: "error" }
+        }
+      };
+    }
+  });
+  ipcMain.handle("updateResource", async (event, data) => {
+    try {
+      console.log(data);
+      await Device.update({ resource: data.resources }, { where: { id: data.deviceId } });
+      return ({ message: "success" })
+    }
+    catch (ex) {
+      writelog(ex)
+      return { message: "error" }
+    }
+  })
+  ipcMain.handle("updateProxyDevice", async (event, data) => {
+    try {
+      data = JSON.parse(data);
+      if (data.option == "oneforall") {
+        const proxy = data.proxies[0];
+        for (const device of data.devicesSelect) {
+          const { proxyValid } = convertProxy(proxy);
+          await Device.update({ proxy: proxyValid }, { where: { id: device.id } });
+        }
+      }
+      else if (data.option == "repeat") {
+        let count = 0;
+        for (const device of data.devicesSelect) {
+          if (count > data.proxies.length - 1) count = 0;
+          const proxy = data.proxies[count];
+          count++;
+          const { proxyValid } = convertProxy(proxy);
+          await Device.update({ proxy: proxyValid }, { where: { id: device.id } })
+        };
+      }
+      else if (data.option == "norepeat") {
+        let count = 0;
+        for (const device of data.devicesSelect) {
+          if (count > data.proxies.length - 1) break;
+          const proxy = data.proxies[count];
+          count++;
+          const { proxyValid } = convertProxy(proxy);
+          await Device.update({ proxy: proxyValid }, { where: { id: device.id } })
+        };
+      }
+      return ({ message: "success", success: true })
+    }
+    catch (ex) {
+      console.log(ex);
+      writelog(ex)
+      return ({ message: "error", success: false })
+    }
+
+  })
+  ipcMain.handle("deleteDevice", async (event, data) => {
+    try {
+      data = JSON.parse(data);
+      await Device.destroy({ where: { id: { [Op.in]: data.deviceIds } } });
+      return { message: "success" };
+    }
+    catch (ex) {
+      return { message: "error" }
+    }
+  });
+  ipcMain.handle("crudProxy", async (event, data) => {
+    data = JSON.parse(data);
+    switch (data.action) {
+      case "check": {
+        async function checkProxies(data, callback) {
+          const proxies = data.proxy || [];
+
+          const promises = proxies.map(async (proxyString) => {
+            const [host, port, user_name, password] = proxyString.split(':');
+            const proxy = {
+              host,
+              port,
+              user_name,
+              password,
+              type: user_name && password ? 'http' : 'https'
+            };
+            let urlProxy = '';
+            if (proxy?.host && proxy?.port) {
+              urlProxy = `${proxy.type}://${proxy.host}:${proxy.port}`;
+            }
+            if (proxy.user_name?.length && proxy.password?.length) {
+              urlProxy = `${proxy.type}://${proxy.user_name}:${proxy.password}@${proxy.host}:${proxy.port}`;
+            }
+
+            let response;
+            try {
+              if (proxy.type === "https" || proxy.type === "http") {
+                console.log('Checking HTTP/HTTPS proxy:', urlProxy);
+                response = await fetch("https://jsonip.com/", { agent: new HttpsProxyAgent(urlProxy) });
+              } else {
+                console.log('Checking SOCKS proxy:', urlProxy);
+                response = await fetch("https://jsonip.com/", { agent: new SocksProxyAgent(urlProxy) });
+              }
+              console.log(response);
+              if (response.ok) {
+                callback({ id: proxyString, status: 'Live' });
+              } else {
+                callback({ id: proxyString, status: 'Die' });
+              }
+            } catch (error) {
+              callback({ id: proxyString, status: 'Die' });
+            }
+          });
+          await Promise.all(promises);
+        }
+
+        await checkProxies(data, (result) => {
+          console.log(result);
+          mainWindow.send("onProxyCheck", result);
+        });
+        return { message: "success" }
+      }
+    }
+  });
   ipcMain.on("startUpdate", (event, data) => {
     data = JSON.parse(data);
     download.DownloadFile(data.url, pathRoot + "\\update", "setup.exe", mainWindow, "onUpdate")
@@ -340,6 +546,7 @@ async function createWindow() {
   ipcMain.handle("initLaucher", async () => {
     {
       await sequelize.sync();
+      await platForm.sync();
       Device.update({ status: 'offline' }, { where: { id: { [Op.not]: null } } });
       connectWebSocket(mainWindow);
       initLaucher();
@@ -360,9 +567,37 @@ async function createWindow() {
     }
   });
   ipcMain.handle('getDeviceList', async (event, data) => {
-    let result = await getDevices();
-    return { success: true, message: "success", data: result };
+    let result = await sequelize.query(`select d.*,g.name group_name from devices d left join device_groups g on d.device_group_id=g.id`, { raw: true });
+    return { success: true, message: "success", data: result[0] };
   })
+}
+function convertProxy(proxy) {
+  try {
+    let proxySplit = proxy.split(':');
+    let proxyDetail = {};
+    let proxyValid = proxy;
+    if (proxySplit.length == 3) {
+      proxyDetail.type = proxySplit[0];
+      proxyDetail.host = proxySplit[1].replace("//", "");
+      proxyDetail.port = proxySplit[2];
+    }
+    else if (proxySplit.length == 5) {
+      proxyDetail.type = proxySplit[0];
+      proxyDetail.host = proxySplit[1].replace("//", "");
+      proxyDetail.port = proxySplit[2];
+      proxyDetail.user_name = proxySplit[3];
+      proxyDetail.password = proxySplit[4];
+    }
+    else {
+      proxyDetail.type = "not_use";
+      proxyValid = "";
+    }
+    return { proxyValid, proxyDetail };
+  }
+  catch (ex) {
+    return { proxyValid: "", proxyDetail: { type: "not_use" } };
+  }
+
 }
 function createSplashWindow() {
   if (splashWindow === null) {
@@ -397,6 +632,22 @@ async function initLaucher() {
     if (!fs.existsSync(pathRoot)) {
       fs.mkdirSync(pathRoot)
     }
+
+    try {
+      await platForm.sync();
+      let check = await platForm.findAll({ where: { name: { [Op.in]: ["Facebook", "Tiktok", "Youtube", "Shoppee", "Instagram", "Twitter", "Telegram", "Zalo", "Google"] } }, raw: true });
+      if (check.length < 9) {
+        await platForm.sync({ force: true });
+        const platformDefault = require("./defaultPlatfrom").defaultPlatfrom;
+        await platForm.bulkCreate(
+          platformDefault
+        )
+      }
+    }
+    catch (err) {
+
+    }
+
     let pathImageSearch = pathRoot + "\\image-finder-v3.exe"
     if (!fs.existsSync(pathImageSearch)) {
       download.DownloadFile("https://s3-hcm5-r1.longvan.net/gemlogin/downloads/image-finder-v3.exe", pathRoot, "image-finder-v3.exe", mainWindow, "");

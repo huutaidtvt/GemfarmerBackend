@@ -17,11 +17,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   searchApp: (data) => ipcRenderer.invoke('searchStore', data),
   downloadApp: (data) => ipcRenderer.invoke('dowloadApp', data),
   getListApp: (data) => ipcRenderer.invoke('getListApp', data),
+  crudPlatform: (data) => ipcRenderer.invoke('crudPlatform', data),
+  crudGroup: (data) => ipcRenderer.invoke('crudGroup', data),
+  updateResource: (data) => ipcRenderer.invoke('updateResource', data),
+  updateProxyDevice: (data) => ipcRenderer.invoke('updateProxyDevice', data),
+  deleteDevice: (data) => ipcRenderer.invoke('deleteDevice', data),
+  crudProxy: (data) => ipcRenderer.invoke('crudProxy', data),
 
   onUpdate: (cb) => {
     ipcRenderer.on('onUpdate', (event, data) => cb(data));
   },
   onDevicesState: (cb) => {
     ipcRenderer.on('onDevicesState', (event, data) => cb(data));
+  },
+  onProxyCheck: (cb) => {
+    ipcRenderer.on('onProxyCheck', (event, data) => cb(data));
   },
 })
