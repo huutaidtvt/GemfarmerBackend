@@ -17,6 +17,18 @@ const Device = sequelize.define('devices', {
         type: DataTypes.STRING,
         allowNull: true,
     },
+    device_group_id:{
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    resource:{
+        type: DataTypes.TEXT,
+        allowNull: true,
+    },
+    proxy:{
+        type: DataTypes.TEXT,
+        allowNull: true,
+    },
     version:{
         type: DataTypes.STRING,
         allowNull: true,
