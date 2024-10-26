@@ -7,65 +7,12 @@ const path = require('path');
 const speakeasy = require('speakeasy');
 const imaps = require('imap-simple');
 const { simpleParser } = require('mailparser');
-const adbPath = path.join(__dirname, "adbTool/adb.exe")
+const adbPath = 'adb'//path.join(__dirname, "adbTool/adb.exe")
 const { spawn } = require('child_process');
 const { error } = require('console');
-
-// async function sendMessageShell(ws, message) {
-//     return new Promise((resolve, reject) => {
-//         let dataSend = createBuffer(32, 1, getBufferData(message));
-//         let dataResponse;
-//         ws.on('message', (data) => {
-//             console.log("data===>", data.toString())
-//             let strHex = toHexString(data);
-//             if (strHex.endsWith("3a2f202420")) {
-//                 ws.removeAllListeners();
-//                 resolve({ success: true, message: "success", data: dataResponse });
-//             }
-//             else {
-//                 dataResponse = data.toString().substring(5);
-//             }
-//         });
-//         setTimeout(() => { resolve({ success: false, message: "timeout" }) }, 5000)
-//         ws.send(dataSend);
-//         ws.send([0x20, 0x01, 0x00, 0x00, 0x00, 0x0d, 0x0a]);
-//     })
-
-// }
-async function sendMessageShell(uuid, message) {
-    console.log(uuid, message)
-    return new Promise((resolve, reject) => {
-        console.log("command", `${adbPath} -s ${uuid} ${message} `)
-        const cmdProcess = spawn(`${adbPath} -s ${uuid} ${message} `, { shell: true });
-        let output = '';
-
-        // Ghi nhận đầu ra
-        cmdProcess.stdout.on('data', (data) => {
-            output += data.toString();
-        });
-        // Xử lý lỗi
-        cmdProcess.stderr.on('data', (data) => {
-            console.log("err", data.toString())
-            // Gửi thông báo lỗi nếu có
-            resolve({
-                success: false,
-                message: `Error: ${data.toString()}`.trim() // Chuyển đổi dữ liệu thành chuỗi
-            });
-        });
-
-        // Khi lệnh hoàn thành
-        cmdProcess.on('close', (code) => {
-            console.log("end", code)
-            resolve({
-                success: true,
-                message: "success",
-                data: output // Trả về kết quả
-            });
-
-        });
-    });
-}
-
+const fetch = require('node-fetch');
+const adb = require('adbkit');
+const client = adb.createClient();
 
 function closeConnectionAfterTimeout(connection, timeout) {
     setTimeout(() => connection.end(), timeout * 1000);
@@ -300,35 +247,18 @@ function actionFile(action, filePath, inputData = "", selectorType, writeMode, a
 }
 
 async function inStallApp(uuid, apkPath) {
-    await sendMessageShell(uuid, `pm install ${apkPath}`);
-}
+    try {
 
-function removeAllOccurrences(buffer, header) {
-    const headerBuffer = Buffer.from(header);
+        await client.install(uuid, apkPath);
+        return { success: true, message: "success" }
+    } catch (error) {
+        return { success: false, message: error.message }
 
-    let offset = 0;
-    let result = Buffer.alloc(0);
-
-    while (offset < buffer.length) {
-        // Tìm chỉ số đầu tiên của đoạn header trong buffer
-        const index = buffer.indexOf(headerBuffer, offset);
-
-        if (index === -1) {
-            // Nếu không còn đoạn header nào, thêm phần còn lại của buffer vào kết quả
-            result = Buffer.concat([result, buffer.slice(offset)]);
-            break;
-        }
-
-        // Thêm phần buffer trước đoạn header vào kết quả
-        result = Buffer.concat([result, buffer.slice(offset, index)]);
-        // Cập nhật offset để bỏ qua đoạn header
-        offset = index + headerBuffer.length;
     }
-
-    return result;
 }
 
-async function screenShot(uuid, options) {
+
+async function screenShot(port, options) {
     console.log('Options:', options);
 
     const screenshotName = options.fileName || 'screenshot.png';
@@ -340,95 +270,96 @@ async function screenShot(uuid, options) {
         fs.mkdirSync(outputFolder, { recursive: true });
     }
 
-    const crop = options.crop || false;
-    const outputVariable = options.outputVariable || null;
-    const startX = options.startX || 0;
-    const startY = options.startY || 0;
-    const endX = options.endX || 0;
-    const endY = options.endY || 0;
-
     try {
-        // Bước 1: Gửi lệnh chụp màn hình qua WebSocket
-        const screenshotCommand = 'screencap -p /sdcard/screenshot.png';
-        await sendMessageShell(uuid, screenshotCommand);
+        let image = await takeScreenshot(port);
+        fs.writeFileSync(localScreenshotPath, image, { encoding: 'base64' })
+        return { success: true, message: "success", data: image }
 
-        // Đợi một chút để thiết bị xử lý lệnh chụp màn hình
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Tăng thời gian chờ
-
-        // Bước 2: Tải ảnh chụp màn hình về máy tính qua WebSocket
-        const pullCommand = 'cat /sdcard/screenshot.png';
-        const screenshotData = await sendMessageShell(uuid, pullCommand);
-
-        if (screenshotData) {
-            // Nếu dữ liệu là chuỗi, chuyển đổi thành Buffer
-            // const screenshotBuffer = Buffer.from(screenshotData, 'binary');
-            console.log('Screenshot data:', screenshotData);
-
-            // Đoạn byte cụ thể bạn muốn loại bỏ
-            const headerToRemove = [0x20, 0x01, 0x00, 0x00, 0x00, 0x0d, 0x0a];
-
-            // Loại bỏ đoạn byte cụ thể
-            const cleanedData = removeAllOccurrences(screenshotData, headerToRemove);
-
-            console.log('Cleaned data:', cleanedData);
-
-            // Ghi dữ liệu ảnh vào tệp cục bộ
-            fs.writeFileSync(localScreenshotPath, cleanedData);
-
-            // Bước 3: Xóa ảnh chụp màn hình khỏi thiết bị sau khi đã tải về
-            const removeCommand = 'rm /sdcard/screenshot.png';
-            await sendMessageShell(uuid, removeCommand);
-
-            // Bước 4: Xử lý cắt ảnh nếu được yêu cầu
-            if (crop) {
-                console.log('Cropping screenshot...');
-                const image = await Jimp.read(localScreenshotPath);
-                const width = endX - startX;
-                const height = endY - startY;
-                await image
-                    .crop(startX, startY, width, height)
-                    .writeAsync(localScreenshotPath.replace('.png', '_cropped.png'));
-            }
-
-            // Bước 5: Xuất ảnh dưới dạng base64 nếu yêu cầu
-            if (outputVariable) {
-                const screenshotBase64 = fs.readFileSync(localScreenshotPath, { encoding: 'base64' });
-                return screenshotBase64; // Trả về base64 nếu cần
-            } else {
-                console.log(`Screenshot saved as ${localScreenshotPath}`);
-            }
-        } else {
-            console.error('Failed to receive screenshot data.');
-        }
     } catch (error) {
-        console.error(`Error: ${error.message}`);
+        console.log(error)
+        return { success: false, message: error.message }
     }
+}
+async function takeScreenshot(port) {
+    const url = `http://127.0.0.1:${port}/jsonrpc/0`;
+    const body = {
+        "jsonrpc": "2.0",
+        "id": "da9ad2c67b104c65855117569c5fdcd2",
+        "method": "takeScreenshot",
+        "params": [
+            1,
+            80
+        ]
+    }
+    let result = await fetch(url,
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        }
+
+    );
+    const data = await result.json();
+    return data.result;
 }
 
 async function pressBack(uuid) {
-    await sendMessageShell(uuid, "shell input keyevent 4");
+    try {
+        await client.shell(uuid, "input keyevent 4");
+        return { success: true, message: "success" };
+    } catch (error) {
+        return { success: false, message: error.message }
+
+    }
+
 }
 async function pressHome(uuid) {
-    await sendMessageShell(uuid, "shell input keyevent 3");
+    try {
+        await client.shell(uuid, "input keyevent 3");
+        return { success: true, message: "success" }
+    } catch (error) {
+        return { success: false, message: error.message }
+
+    }
 }
 async function pressMenu(uuid) {
-    await sendMessageShell(uuid, "shell input keyevent 187");
+    try {
+        await client.shell(uuid, "input keyevent 187");
+        return { success: true, message: "success" }
+    } catch (error) {
+        return { success: false, message: error.message }
+
+    }
 }
 async function lockPhone(uuid) {
-    await sendMessageShell(uuid, "shell input keyevent 26")
+    try {
+        await client.shell(uuid, "input keyevent 26");
+        return { success: true, message: "success" }
+    } catch (error) {
+        return { success: false, message: error.message }
+
+    }
 }
 async function unlockPhone(uuid) {
-    await sendMessageShell(uuid, "shell input keyevent 82");
+    try {
+        await client.shell(uuid, "input keyevent 82");
+        return { success: true, message: "success" }
+    } catch (error) {
+        return { success: false, message: error.message }
+
+    }
 }
 async function deviceActions(uuid, action) {
 
     switch (action) {
         case 'unlock':
-            await unlockPhone(uuid);
-            break;
+            return await unlockPhone(uuid);
+
         default:
-            await lockPhone(uuid);
-            break;
+            return await lockPhone(uuid);
+
     }
 
 }
@@ -436,84 +367,84 @@ async function getAttribute(uuid, xpathQuery, name, seconds) {
     console.log(`getAttribute: ${xpathQuery}, ${name}, ${seconds}`);
 
     const waitTime = seconds * 1000;
-
-    // Gửi lệnh dump giao diện người dùng
-    await sendMessageShell(uuid, `uiautomator dump /sdcard/ui.xml`);
-
-    setTimeout(async () => {
-        // Nhận nội dung XML trực tiếp từ shell
-        let result = await sendMessageShell(uuid, `cat /sdcard/ui.xml`);
-
-        // Loại bỏ phần dữ liệu không phải là XML
-        result = result.substring(result.indexOf('<?xml'));
-
-        // Kiểm tra xem kết quả có phải là XML hợp lệ hay không
+    const startTime = Date.now();
+    while ((Date.now() - startTime) < timeOut) {
+        let response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        response = await response.json();
+        let result = response.result;
         if (result.startsWith('<?xml')) {
-            // Phân tích chuỗi XML thành tài liệu
+            // Phân tích trực tiếp nội dung XML từ biến result
             const doc = new DOMParser().parseFromString(result, 'text/xml');
-            const nodes = xpath.select(xpathQuery, doc);
-
-            // Kiểm tra xem có phần tử nào khớp với XPath hay không
+            const nodes = xpath.select(selector, doc);
             if (nodes.length > 0) {
                 const node = nodes[0];
-                const attributeValue = node.getAttribute(name);
-
                 if (attributeValue) {
-                    console.log(`Attribute found: ${attributeValue}`);
-                    return attributeValue;
-                } else {
-                    console.log('Attribute not found');
+                    const attributeValue = node.getAttribute(name);
+                    return { success: true, message: "success", data: attributeValue }
                 }
-            } else {
-                console.log('Element not found');
+                else {
+                    return { success: false, message: 'Attribute not found' }
+                }
             }
-        } else {
-            console.log('Invalid XML format');
         }
+    }
+    return { success: false, message: 'Element not found' };
+    // // Gửi lệnh dump giao diện người dùng
+    // await sendMessageShell(uuid, `uiautomator dump /sdcard/ui.xml`);
 
-    }, waitTime);
+    // setTimeout(async () => {
+    //     // Nhận nội dung XML trực tiếp từ shell
+    //     let result = await sendMessageShell(uuid, `cat /sdcard/ui.xml`);
+
+    //     // Loại bỏ phần dữ liệu không phải là XML
+    //     result = result.substring(result.indexOf('<?xml'));
+
+    //     // Kiểm tra xem kết quả có phải là XML hợp lệ hay không
+    //     if (result.startsWith('<?xml')) {
+    //         // Phân tích chuỗi XML thành tài liệu
+    //         const doc = new DOMParser().parseFromString(result, 'text/xml');
+    //         const nodes = xpath.select(xpathQuery, doc);
+
+    //         // Kiểm tra xem có phần tử nào khớp với XPath hay không
+    //         if (nodes.length > 0) {
+    //             const node = nodes[0];
+    //             const attributeValue = node.getAttribute(name);
+
+    //             if (attributeValue) {
+    //                 console.log(`Attribute found: ${attributeValue}`);
+    //                 return attributeValue;
+    //             } else {
+    //                 console.log('Attribute not found');
+    //             }
+    //         } else {
+    //             console.log('Element not found');
+    //         }
+    //     } else {
+    //         console.log('Invalid XML format');
+    //     }
+
+    // }, waitTime);
 }
 
-async function elementExists(uuid, xpathQuery, seconds = 10) {
-
-    console.log(`ElementExists: ${xpathQuery}, ${seconds}`);
-
-    // Gửi lệnh để dump giao diện người dùng
-    await sendMessageShell(uuid, `shell uiautomator dump /sdcard/ui.xml`);
-
-    // Sử dụng setTimeout để chờ một khoảng thời gian trước khi kiểm tra
-    setTimeout(async () => {
-
-        // Nhận nội dung XML từ thiết bị thông qua WebSocket
-        let result = await sendMessageShell(uuid, `shell cat /sdcard/ui.xml`);
-
-        // Loại bỏ phần không phải XML nếu cần
-        result = result.substring(result.indexOf('<?xml'));
-
-        // Kiểm tra xem kết quả có phải là XML hợp lệ không
-        if (result.startsWith('<?xml')) {
-            // Phân tích chuỗi XML thành đối tượng tài liệu
-            const doc = new DOMParser().parseFromString(result, 'text/xml');
-            const nodes = xpath.select(xpathQuery, doc);
-
-            // Kiểm tra sự tồn tại của phần tử dựa trên XPath
-            if (nodes.length > 0) {
-                console.log(`Element found: ${nodes.length}`);
-                return true;
-            } else {
-                console.log('Element not found');
-                return false;
-            }
-        } else {
-            console.log('Invalid XML format');
-            return false;
-        }
-
-    }, seconds * 1000); // Thời gian chờ theo giây
+async function elementExists(port, xpathQuery, seconds = 10) {
+    let url = `http://127.0.0.1:${port}/jsonrpc/0`;
+    let result = await getPosElment(url, xpathQuery, seconds);
+    if (result.success) {
+        return { success: true, message: "success", data: true }
+    }
+    else {
+        return { success: true, message: "success", data: false }
+    }
 }
 
 async function adbShell(uuid, command) {
-    await sendMessageShell(uuid, command);
+    await client.shell(uuid, command);
 }
 async function generate2FA(uuid, secretKey) {
     const token = speakeasy.totp({
@@ -531,7 +462,7 @@ async function generate2FA(uuid, secretKey) {
 
 async function startApp(uuid, packageName) {
     try {
-        let result = await sendMessageShell(uuid, `shell monkey -p ${packageName} 1`);
+        await client.shell(uuid, `monkey -p ${packageName} 1`);
         return { success: true, message: "success" }
 
     } catch (error) {
@@ -541,7 +472,7 @@ async function startApp(uuid, packageName) {
 }
 async function stopApp(uuid, packageName) {
     try {
-        await sendMessageShell(uuid, `shell am force-stop ${packageName}`);
+        await client.shell(uuid, `am force-stop ${packageName}`);
         return { success: true, message: "success" }
     } catch (error) {
         return { success: false, message: error.message }
@@ -550,18 +481,21 @@ async function stopApp(uuid, packageName) {
 }
 
 async function unInStallApp(uuid, packageName) {
-    await sendMessageShell(uuid, `shell pm uninstall ${packageName}`);
+    try {
+        await client.uninstall(uuid, packageName);
+        return { success: true, message: success };
+    } catch (error) {
+        return { success: false, message: error.message };
+    }
 }
 async function isInStallApp(uuid, packageName) {
-    let isInstalled = await sendMessageShell(uuid, `shell pm list packages | grep  ${packageName}`);
-
-    if (isInstalled.includes(packageName)) {
-        console.log(`${packageName} is installed.`);;
-        return true
-    } else {
-        console.log(`${packageName} is not installed.`);
-        return false
+    try {
+        let isInstalled = await client.isInstalled(uuid, packageName);
+        return { success: true, message: "success", data: isInstalled }
+    } catch (error) {
+        return { success: false, message: error.message }
     }
+
 }
 async function toggleAirplaneMode(uuid) {
     let res = await sendMessageShell(uuid, 'shell settings get global airplane_mode_on');
@@ -672,25 +606,50 @@ async function toggleService(uuid, service) {
     }
 
 }
-async function transferFile(uuid, action, localFilePath, remoteFilePath) {
-
-    async function transferFile(uuid, action, localFilePath, remoteFilePath) {
-
-        let command;
 
 
+async function transferFile(deviceId, action, localFilePath, remoteFilePath) {
+    try {
         if (action === 'push') {
-            command = `push "${localFilePath}" "${remoteFilePath}"`;
+            await pushFile(deviceId, localFilePath, remoteFilePath);
         } else if (action === 'pull') {
-            command = `pull "${remoteFilePath}" "${localFilePath}"`;
+            await pullFile(deviceId, localFilePath, remoteFilePath);
         }
-
-        await sendMessageShell(uuid, command);
+        return { success: true, message: "success" };
+    } catch (error) {
+        return { success: false, message: error.message };
     }
 
-    await sendMessageShell(uuid, command);
 
 }
+async function pullFile(deviceId, localFilePath, remoteFilePath) {
+    return new Promise(function (resolve, reject) {
+        client.pull(deviceId, remoteFilePath)
+            .then(function (transfer) {
+                transfer.on('end', function () {
+                    resolve(device.id)
+                })
+                transfer.on('error', reject);
+                transfer.pipe(fs.createWriteStream(localFilePath))
+
+            })
+    })
+}
+async function pushFile(deviceId, localFilePath, remoteFilePath) {
+    return new Promise(function (resolve, reject) {
+        client.push(deviceId, localFilePath, remoteFilePath)
+            .then(function (transfer) {
+                transfer.on('end', function () {
+                    resolve(device.id)
+                })
+                transfer.on('error', reject);
+
+            })
+    })
+}
+
+
+
 
 
 
@@ -711,8 +670,9 @@ async function touch(uuid, selectBy = 'selector', options, touchType = 'Normal',
         // Kiểm tra xem kết quả có phải là XML không
         if (result.startsWith('<?xml')) {
             // Phân tích trực tiếp nội dung XML từ biến result
-            const doc = new DOMParser().parseFromString(result, 'text/xml');
-            const nodes = xpath.select(xpathQuery, doc);
+            // const doc = new DOMParser().parseFromString(result, 'text/xml');
+            const nodes = xpath.select(xpathQuery, result);
+            console.log(nodes)
 
             if (nodes.length > 0) {
                 console.log(`Element found: ${nodes.length}`);
@@ -776,7 +736,7 @@ async function touch(uuid, selectBy = 'selector', options, touchType = 'Normal',
 }
 
 
-async function swipeSimple(uuid, direction) {
+async function swipeSimple(port, direction) {
 
     let startX, startY, endX, endY;
 
@@ -807,57 +767,121 @@ async function swipeSimple(uuid, direction) {
             break;
         default:
     }
-
-    await sendMessageShell(uuid, `shell input swipe ${startX} ${startY} ${endX} ${endY}`);
+    let body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "swipe",
+        "params": [
+            startX,
+            startY,
+            endX,
+            endY,
+            50
+        ]
+    }
+    console.log(body)
+    return postData(port, body);
 
 }
-async function swipeCustom(uuid, startX, startY, endX, endY, duration) {
-    await sendMessageShell(uuid, `shell input swipe ${startX} ${startY} ${endX} ${endY} ${duration}`);
+async function swipeCustom(port, startX, startY, endX, endY, duration) {
+    let body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "swipe",
+        "params": [
+            startX,
+            startY,
+            endX,
+            endY,
+            duration
+        ]
+    }
+    return postData(port, body);
 }
 
-async function swipeScroll(uuid, mode, options) {
+async function swipeScroll(port, mode, options) {
     if (mode === 'custom') {
         let { startX, startY, endX, endY, duration } = options;
-        await swipeCustom(uuid, startX, startY, endX, endY, duration);
+        return await swipeCustom(port, startX, startY, endX, endY, duration);
     } else {
         let { direction } = options;
-        await swipeSimple(uuid, direction);
+        return await swipeSimple(port, direction);
     }
 }
 
-async function pressKey(uuid, keyCode) {
-    await sendMessageShell(uuid, `shell input keyevent ${keyCode}`);
+async function pressKey(port, keyCode) {
+
+    let body = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "pressKeyCode",
+        "params": [keyCode]
+    }
+    return await postData(port, body);
+
+}
+async function postData(port, body) {
+    try {
+        let url = `http://127.0.0.1:${port}/jsonrpc/0`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        let result = await res.json();
+        console.log(result);
+        if (result.result) {
+            return { success: true, message: "success" }
+        }
+        else {
+            return { success: false, message: "" }
+        }
+    } catch (error) {
+        console.log(error)
+        return { success: false, message: error.message }
+    }
 }
 
-async function typeText(uuid, selector, seconds = 10, text) {
-    console.log(`Selector: ${selector}, Duration: ${seconds}, Text: ${text}`);
+async function typeText(port, deviceId, selector, seconds, text) {
+    let url = `http://127.0.0.1:${port}/jsonrpc/0`;
 
-    // Gửi lệnh để tạo bản dump của giao diện người dùng
-    await sendMessageShell(uuid, 'shell uiautomator dump /sdcard/ui.xml');
-
-    setTimeout(async () => {
-        // Đọc nội dung file XML từ thiết bị
-        let result = await sendMessageShell(uuid, `shell cat /sdcard/ui.xml`);
-        result=result.data;
-        console.log(result)
-
-        // Loại bỏ phần không phải XML
-        result = result.substring(result.indexOf('<?xml'));
-
-        // Kiểm tra xem kết quả có phải là XML không
+    const result = await getPosElment(url, selector, seconds, true);
+    if (!result.success) return result;
+    const textBase64 = Buffer.from(text).toString('base64')
+    client.shell(deviceId, `am broadcast -a ADB_KEYBOARD_SET_TEXT --es text ${textBase64}`);
+    return { success: true, message: "success" }
+}
+async function getPosElment(url, selector, timeOut = 0, focus = true) {
+    let body = {
+        "jsonrpc": "2.0",
+        "id": "da9ad2c67b104c65855117569c5fdcd2",
+        "method": "dumpWindowHierarchy",
+        "params": [
+            false,
+            50
+        ]
+    }
+    timeOut = timeOut * 1000;
+    const startTime = Date.now();
+    while ((Date.now() - startTime) < timeOut) {
+        let response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        response = await response.json();
+        let result = response.result;
         if (result.startsWith('<?xml')) {
             // Phân tích trực tiếp nội dung XML từ biến result
             const doc = new DOMParser().parseFromString(result, 'text/xml');
             const nodes = xpath.select(selector, doc);
-
             if (nodes.length > 0) {
                 const node = nodes[0];
                 const boundsAttr = node.getAttribute('bounds');
-
-                if (!boundsAttr) {
-                    console.log('No bounds attribute found for the element');
-                    return;
-                }
 
                 // Tìm tọa độ từ thuộc tính 'bounds'
                 const boundsRegex = /\[(\d+),(\d+)\]\[(\d+),(\d+)\]/;
@@ -867,28 +891,33 @@ async function typeText(uuid, selector, seconds = 10, text) {
                     const [left, top, right, bottom] = match.slice(1).map(Number);
                     const x = Math.floor((left + right) / 2);
                     const y = Math.floor((top + bottom) / 2);
-
-                    // Bước 3: Nhấp vào trường để chọn nó
-                    console.log(`Tapping on (${x}, ${y})...`);
-                    await sendMessageShell(uuid, `shell input tap ${x} ${y}`);
-
-                    // Bước 4: Nhập văn bản vào trường
-                    const escapedText = text.replace(/ /g, '%s'); // Escape khoảng trắng
-                    const typeCommand = `shell input text "${escapedText}"`;
-
-                    console.log(`Executing command: ${typeCommand}`);
-                    await sendMessageShell(uuid, typeCommand);
-
-                } else {
-                    console.log('Invalid bounds attribute format');
+                    if (focus) {
+                        body = {
+                            "jsonrpc": "2.0",
+                            "id": "a2254a2f42f44da3a8b6e81d83e9627b",
+                            "method": "click",
+                            "params": [
+                                x,
+                                y
+                            ]
+                        }
+                        await fetch(address, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(body)
+                        });
+                    }
+                    return { success: true, message: "success", data: { x, y } }
                 }
-            } else {
-                console.log("Element not found for the given XPath.");
+                else {
+                    return { success: false, message: 'Invalid bounds attribute format' };
+                }
             }
-        } else {
-            console.log("Invalid XML format.");
         }
-    }, seconds * 1000);
+    }
+    return { success: false, message: 'Element not found' };
 }
 
 
@@ -923,7 +952,6 @@ module.exports = {
     imapReadMail,
     actionFile,
     generate2FA,
-    elementExists,
     getAttribute,
     imapReadMail,
     actionFile

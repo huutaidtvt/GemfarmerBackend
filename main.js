@@ -1,4 +1,6 @@
 const { app, BrowserWindow, session, ipcMain, dialog, shell } = require('electron');
+var adb = require('adbkit')
+var client = adb.createClient()
 const path = require('path');
 const license = require('./license');
 const { spawn, exec } = require('child_process');
@@ -6,50 +8,52 @@ var splashWindow = null;
 var mainWindow = null;
 let deviceValid;
 let deviceCode;
+let deviceWindow = null;
 const pathWeb = path.join("D:\\genlogin\\farmer\\gemfarmer", "build");
 //const pathWeb = path.join(process.resourcesPath, "..\\..\\build");
+//const pathWeb = path.join(process.resourcesPath, "..\\bin\\build");
 const pathPreload = path.join(__dirname, 'preload.js');
 const osPaths = require('os-paths/cjs');
 const pathRoot = osPaths.home() + "\\.gemFamer";
-const WebSocket = require('ws');
 let download = require('./download');
 const { Sequelize, where, Op } = require('sequelize');
 const sequelize = require('./configs/database');
 const Scripts = require('./models/Script');
 const Device = require('./models/Device');
 const fs = require('fs');
+//server express
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const fetch = require('node-fetch');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
-const { createBuffer, getChannelInitData, getBufferData } = require('./createMessage')
+const { checkAndInstallApks, checkAndInstallAtxAgent, getDeviceInfo } = require('./checkAppStart')
 const { pressBack, pressHome, pressMenu, deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeScroll, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, stopApp, startApp, generate2FA, adbShell, imapReadMail, actionFile } = require('./adbFunctions')
 var listDevice = [];
 let isUpdate = false;
-var listDevice = [];
-const ChannelCode = {
-  FSLS: 'FSLS', // File System LiSt
-  HSTS: 'HSTS', // HoSTS List
-  SHEL: 'SHEL', // SHELl
-  GTRC: 'GTRC', // Goog device TRaCer
-  ATRC: 'ATRC', // Appl device TRaCer
-  WDAP: 'WDAP', // WebDriverAgent Proxy
-  QVHS: 'QVHS', // Quicktime_Video_Hack Stream
-}
-startScrcpy();
+//startScrcpy();
+runServer();
+
+
+
+
+
 async function createWindow() {
   session.defaultSession.loadExtension(pathWeb).then((data) => {
     mainWindow.loadURL(data.url + "/newtab.html#");
   });
 
-  sequelize.sync()
+
   createSplashWindow();
   // let checkRun = await isRunning("gemLogin.exe");
   // if (checkRun) {
   //   exec(`taskkill /im gemLogin.exe /f`, (err, stdout, stderr) => {
   //   })
   // }
-
   // listApp(2)
   // searchApp("panda")
   // downloadAPK("com.zing.zalo")
+
 
   mainWindow = new BrowserWindow({
     width: 1500,
@@ -108,157 +112,163 @@ async function createWindow() {
     }
   });
 
+  // ipcMain.handle("searchApp", async (event, data) => {
+  //   console.log("data =>", data);
+  //   let { key, page, limit } = data;
+  //   return searchApp(key, page, limit);
+  // });
+
+  // ipcMain.handle("downloadApp", async (event, data) => {
+  //   console.log("data =>", data);
+  //   let { id, version } = data;
+  //   return await downloadAPK(id, version);
+  // });
+
+  // ipcMain.handle("getListApp", async (event, data) => {
+  //   console.log("data =>", data);
+  //   let { page, limit } = data;
+  //   return listApp(page, limit);
+  // });
+  ipcMain.handle("reloadData", async (event, data) => {
+   let devices=await client.listDevices();
+   
+  })
   ipcMain.handle("sendData", async (event, data) => {
-    //const deviceId = data.deviceId;
-    let client = data.deviceId;
-    console.log(data)
-    // let device = listDevice.find(c => c.deviceId == deviceId);
-    // if (!device) {
-    //   client = await createConnect(deviceId);
-    //   listDevice.push({ deviceId, client });
-    // }
-    // else {
-    //   client = device.client;
-    // }
+    let device_id = data.deviceId;
+    console.log(data);
+    let p = listDevice.find(c => c.device_id == device_id);
+    if (p) {
+      const port = p.port;
+      switch (data.type) {
+        // Run oke
+        case "pressMenu": {
+          return await pressMenu(device_id);
+        }
 
-    // getAttribute(client, "", "", "", "")
-    switch (data.type) {
-      // Run oke
-      case "pressMenu": {
-        await pressMenu(client);
-        return { success: true, message: "success" }
+        case "pressHome": {
+          return await pressHome(device_id);
+
+        }
+
+        case "pressBack": {
+          return await pressBack(device_id);
+        }
+
+        case "deviceAction": {
+          return await deviceActions(device_id, data.data.action);
+        }
+
+        case "startApp": {
+          return await startApp(device_id, data.data.packageName);
+
+        }
+
+        case "stopApp": {
+          return await stopApp(device_id, data.data.packageName);
+
+        }
+
+        case "uninstallApp": {
+          return await unInStallApp(device_id, data.data.ValuePackageName);
+
+        }
+
+        case "swipeScroll": {
+          return await swipeScroll(port, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
+
+        }
+
+        case "typeText": {
+          return await typeText(port, device_id, data.data.selector, data.data.timeout, data.data.inputText);
+        }
+        case "tonggleService": {
+          return await toggleService(device_id, data.data.action);
+
+        }
+
+        case "pressKeyPhone": {
+          return await pressKey(port, data.data.keyCode);
+
+        }
+
+        case "adbShellCommand": {
+          return await adbShell(device_id, data.data.command);
+        }
+
+        case "touch": {
+          return await touch(device_id, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
+
+        }
+
+        case "fileAction": {
+          return actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
+
+        }
+
+        case "imapReadMail": {
+          return await imapReadMail(
+            data.data.emailService,
+            data.data.email,
+            data.data.password,
+            data.data.mailBox,
+            {
+              unseen: data.data.isUnseen,
+              markAsRead: data.data.isMark,
+              latestMail: data.data.isGetLatest,
+              from: data.data.includesFrom,
+              to: data.data.includesTo,
+              subject: data.data.includesSubject,
+              body: data.data.includesBody,
+              minutesAgo: data.data.readEmailMinute,
+              flags: { g: data.data.isGlobal, i: data.data.isCaseInsensitive, m: data.data.isMultiline }
+            },
+            data.data.regex,
+            data.data.timeOut,
+            data.data.imapHost,
+            data.data.imapPort,
+            data.data.isTLS
+          )
+        }
+
+        case "getAttribute": {
+          return await getAttribute(port, data.data.xPath, data.data.name, data.data.timeOut);
+        }
+
+        case "isInstallApp": {
+          return await isInStallApp(device_id, data.data.packageName);
+        }
+
+        case "ElementExists": {
+          return await elementExists(port, data.data.xPath, data.data.timeOut);
+
+        }
+
+        case "generate2FA": {
+          return await generate2FA(device_id, data.data.secretKey);
+
+        }
+
+        // Đang lỗi chưa fix được
+
+        case "inStallApp": {
+          return await inStallApp(device_id, data.data.apkPath);
+
+        }
+
+        case "transferFile": {
+          return await transferFile(device_id, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
+
+        }
+
+        case "screenShot": {
+          return await screenShot(port, data.data);
+
+        }
+
       }
-
-      case "pressHome": {
-        await pressHome(client);
-        return { success: true, message: "success" }
-      }
-
-      case "pressBack": {
-        await pressBack(client);
-        return { success: true, message: "success" }
-      }
-
-      case "deviceAction": {
-        await deviceActions(client, data.data.action);
-        return { success: true, message: "success" }
-      }
-
-      case "startApp": {
-        return await startApp(client, data.data.packageName);
-
-      }
-
-      case "stopApp": {
-        return await stopApp(client, data.data.packageName);
-
-      }
-
-      case "uninstallApp": {
-        await unInStallApp(client, data.data.ValuePackageName);
-        return { success: true, message: "success" }
-      }
-
-      case "swipeScroll": {
-        await swipeScroll(client, data.data.mode, { direction: data.data.direction, startX: data.data.startX, startY: data.data.startY, endX: data.data.endX, endY: data.data.endY, duration: data.data.duration });
-        return { success: true, message: "success" }
-      }
-
-      case "typeText": {
-        await typeText(client, data.data.selector, data.data.timeout, data.data.inputText);
-        return { success: true, message: "success" }
-      }
-
-      case "tonggleService": {
-        await toggleService(client, data.data.action);
-        return { success: true, message: "success" }
-      }
-
-      case "pressKeyPhone": {
-        await pressKey(client, data.data.keyCode);
-        return { success: true, message: "success" }
-      }
-
-      case "adbShellCommand": {
-        await adbShell(client, data.data.command);
-        return { success: true, message: "success" }
-      }
-
-      case "touch": {
-        await touch(client, data.data.selectBy, { xpathQuery: data.data.xPath, timeOut: data.data.timeOut, xCoordinate: data.data.xCoordinate, yCoordinate: data.data.yCoordinate }, data.data.type, data.data.delay);
-        return { success: true, message: "success" }
-      }
-
-      case "fileAction": {
-        actionFile(data.data.action, data.data.filePath, data.data.inputData, data.data.selectorType, data.data.writeMode, data.data.appendMode, data.data.delimiter);
-        return { success: true, message: "success" }
-      }
-
-      case "imapReadMail": {
-        await imapReadMail(
-          data.data.emailService,
-          data.data.email,
-          data.data.password,
-          data.data.mailBox,
-          {
-            unseen: data.data.isUnseen,
-            markAsRead: data.data.isMark,
-            latestMail: data.data.isGetLatest,
-            from: data.data.includesFrom,
-            to: data.data.includesTo,
-            subject: data.data.includesSubject,
-            body: data.data.includesBody,
-            minutesAgo: data.data.readEmailMinute,
-            flags: { g: data.data.isGlobal, i: data.data.isCaseInsensitive, m: data.data.isMultiline }
-          },
-          data.data.regex,
-          data.data.timeOut,
-          data.data.imapHost,
-          data.data.imapPort,
-          data.data.isTLS
-        )
-
-        return { success: true, message: "success" }
-
-      }
-
-      case "getAttribute": {
-        const result = await getAttribute(client, data.data.xPath, data.data.name, data.data.timeOut);
-        return { success: true, message: "success", data: result }
-      }
-
-      case "isInstallApp": {
-        const result = await isInStallApp(client, data.data.packageName);
-        return { success: true, message: "success", data: result }
-      }
-
-      case "ElementExists": {
-        const result = await elementExists(client, data.data.xPath, data.data.timeOut);
-        return { success: true, message: "success", data: result }
-      }
-
-      case "generate2FA": {
-        const result = await generate2FA(client, data.data.secretKey);
-        return { success: true, message: "success", data: result }
-      }
-
-      // Đang lỗi chưa fix được
-
-      case "inStallApp": {
-        await inStallApp(client, data.data.apkPath);
-        return { success: true, message: "success" }
-      }
-
-      case "transferFile": {
-        await transferFile(client, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
-        return { success: true, message: "success" }
-      }
-
-      case "screenShot": {
-        await screenShot(client, data.data.options);
-        return { success: true, message: "success" }
-      }
-
+    }
+    else {
+      return { success: false, message: "device offline" }
     }
     // console.log(data);
   })
@@ -314,12 +324,18 @@ async function createWindow() {
   ipcMain.on("openLink", (event, data) => {
     shell.openExternal(data);
   });
+  ipcMain.on("openDevice", (event, data) => {
+    console.log(data);
+    openAboutWindow(data.deviceId);
+  })
+
   ipcMain.handle("initLaucher", async () => {
     {
       await sequelize.sync();
       Device.update({ status: 'offline' }, { where: { id: { [Op.not]: null } } });
-      connectWebSocket(mainWindow);
+      // connectWebSocket(mainWindow);
       initLaucher();
+      trackDevice();
     }
   })
   ipcMain.handle('quitAndInstall', () => {
@@ -337,10 +353,28 @@ async function createWindow() {
     }
   });
   ipcMain.handle('getDeviceList', async (event, data) => {
-    let result = await getDevices();
-    return { success: true, message: "success", data: result };
+    const devices = await Device.findAll({ raw: true });
+    return { success: true, message: "success", data: devices };
   })
 }
+function openAboutWindow(deviceId) {
+  if (deviceWindow) {
+    deviceWindow.focus();
+    return
+  }
+
+  deviceWindow = new BrowserWindow({
+    height: 700,
+    resizable: true,
+    width: 270,
+    icon: __dirname + "/logo.png",
+  });
+
+  deviceWindow.setMenu(null); // here!
+  deviceWindow.loadURL(`http://localhost:8000/#!action=stream&controls=true&controlButtons=false&udid=${deviceId}&player=tinyh264&ws=ws%3A%2F%2Flocalhost%3A8000%2F%3Faction%3Dproxy-adb%26remote%3Dtcp%253A8886%26udid%3D${deviceId}`).then(r => r);
+  deviceWindow.on('closed', () => deviceWindow = null);
+}
+
 function createSplashWindow() {
   if (splashWindow === null) {
     var imagePath = path.join(__dirname, "splash.jpg");
@@ -366,7 +400,6 @@ app.on('window-all-closed', function () {
 
   exec(`taskkill /im image-finder-v3.exe /f`, (err, stdout, stderr) => {
   })
-
   app.quit()
 })
 async function initLaucher() {
@@ -394,155 +427,136 @@ function writelog(message) {
   fs.appendFileSync(filelog, "--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\r\n", 'utf8');
   fs.appendFileSync(filelog, message + "\r\n", 'utf8');
 }
-function connectWebSocket(win) {
-  let ws = new WebSocket('ws://localhost:8000/?action=multiplex', { maxPayload: 4096 * 10 });
-  ws.on('error', console.error);
-  ws.on('open', function open() {
-    let message = createBuffer(4, 1, getChannelInitData(ChannelCode.GTRC));
-    ws.send(message);
+
+function runServer() {
+  const appExpress = express();
+  const port = 5555;
+  appExpress.use(cors());
+  appExpress.use(bodyParser.json());
+  appExpress.get('/devices', async function (req, res) {
+    let result = await client.listDevices();
+    res.json(result);
   });
-
-  ws.on('message', async function message(data) {
-    try {
-
-      data = data.toString().substring(5);
-      console.log("ttt", data);
-      // Chuyển đổi dữ liệu nhận được từ WebSocket thành chuỗi và phân tích nó
-      const jsonData = JSON.parse(data);
-
-      if (jsonData.type === 'devicelist') {
-
-        const devices = jsonData.data.list;
-
-        // Lấy danh sách UDID của thiết bị mới
-        const deviceIds = devices.map(device => device.udid);
-
-        // Cập nhật hoặc thêm thiết bị vào cơ sở dữ liệu
-        for (const device of devices) {
-          let name = device['ro.product.model'];
-          let manufacturer = device['ro.product.manufacturer'];
-          let version = device["ro.build.version.release"];
-          const { udid, state, ...rest } = device;
-          await Device.upsert({
-            name: name,
-            version: version,
-            manufacturer: manufacturer,
-            device_id: udid, // Sử dụng `udid` làm `name` để đảm bảo tính duy nhất
-            status: state === 'device' ? 'online' : 'offline', // Cập nhật trạng thái thiết bị
-            ...rest, // Thêm các trường khác nếu cần thiết
-            lastUpdate: new Date() // Cập nhật thời gian cuối cùng
-          });
-        }
-      }
-      if (jsonData.type == "device") {
-        const deviceId = jsonData.data.device.udid;
-        let device = jsonData.data.device;
-        let name = device['ro.product.model'];
-        let manufacturer = device['ro.product.manufacturer'];
-        let version = device["ro.build.version.release"];
-        const udid = device.udid;
-
-        if (jsonData.data.device.state == "disconnected") {
-          await Device.upsert({
-            name: name,
-            version: version,
-            manufacturer: manufacturer,
-            device_id: udid,
-            status: 'offline',
-            lastUpdate: new Date()
-          });
-          if (win) {
-            let deviceList = await Device.findAll({ raw: true });
-            win.webContents.send('onDevicesState', deviceList);
-          }
-        }
-        else if (jsonData.data.device.state == "device") {
-          await Device.upsert({
-            name: name,
-            version: version,
-            manufacturer: manufacturer,
-            device_id: udid,
-            status: 'online',
-            lastUpdate: new Date()
-          });
-          if (win) {
-            let deviceList = await Device.findAll({ raw: true });
-            win.webContents.send('onDevicesState', deviceList);
-          }
-        }
+  appExpress.get('/capture/:deviceId', async (req, res) => {
+    let deviceId = req.params.deviceId;
+    let p = listDevice.find(c => c.device_id == deviceId);
+    if (!p) res.json({ success: false, message: "device Offline" });
+    let address = `http://127.0.0.1:${p.port}/jsonrpc/0`;
+    let bodys = [
+      {
+        "jsonrpc": "2.0",
+        "id": "da9ad2c67b104c65855117569c5fdcd2",
+        "method": "dumpWindowHierarchy",
+        "params": [
+          false,
+          50
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "da9ad2c67b104c65855117569c5fdcd2",
+        "method": "takeScreenshot",
+        "params": [
+          1,
+          80
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "3a982f85d17842e2955e8e5b26313ceb",
+        "method": "deviceInfo",
+        "params": []
       }
 
-    } catch (error) {
-      console.error('Error processing device list:', error);
-    }
-  });
+    ];
+    response = await Promise.all(bodys.map(async (c) => {
+      try {
+        let result = await fetch(address,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(c)
+          }
 
-  ws.on('close', function close() {
-    console.log('Connection closed');
-  });
-}
-async function getDevices() {
-  try {
-    const devices = await Device.findAll({ raw: true });
-    return devices
-  } catch (error) {
-    console.error('Error retrieving device list:', error);
-    return [];
-  }
-}
-// async function createConnect(deviceId) {
-//   return new Promise((resolve, reject) => {
-//     // let timeOut = setTimeout(() => { reject() }, 10000)
-//     let client = new WebSocket('ws://localhost:8000/?action=multiplex');
-//     // client.on("message", (data) => {
-//     //   console.log("data", data)
-//     //   if (data) console.log("endMessa=======>", data.toString());
-//     //   // clearTimeout(timeOut);
-//     //   //resolve({client,messageEnd:data.toString()})
-//     // })
-//     client.on("open", () => {
-//       let message = createBuffer(4, 1, getChannelInitData(ChannelCode.SHEL));
-//       client.send(message);
-//       setTimeout(() => {
-//         let data = {
-//           id: 1,
-//           type: 'shell',
-//           data: {
-//             type: 'start',
-//             rows: 100,
-//             cols: 51,
-//             udid: deviceId,
-//           },
-//         };
-//         message = createBuffer(32, 1, getBufferData(JSON.stringify(data)));
-//         client.send(message);
-//       }, 200)
+        );
+        const data = await result.json();
+        return data;
 
-//     })
-//   })
-// }
-async function createConnect(deviceId) {
-  return new Promise((resolve, reject) => {
-    let timeOut = setTimeout(() => { reject() }, 10000)
-    let client = new WebSocket('ws://localhost:8000/?action=multiplex', { maxPayload: 4096 * 10 });
-    client.on("open", () => {
-      let message = createBuffer(4, 1, getChannelInitData(ChannelCode.SHEL));
-      client.send(message);
-      let data = {
-        id: 1,
-        type: 'shell',
-        data: {
-          type: 'start',
-          rows: 100,
-          cols: 51,
-          udid: deviceId,
-        },
-      };
-
-      message = createBuffer(32, 1, getBufferData(JSON.stringify(data)));
-      client.send(message);
-      clearTimeout(timeOut);
-      resolve(client)
+      }
+      catch (ex) { console.log(ex); return null }
+    }));
+    console.log(response)
+    res.json({
+      source: response[0].result,
+      screenshot: response[1].result,
+      windowSize: {
+        width: response[2].result.displayWidth,
+        height: response[2].result.displayHeight,
+        x: 0,
+        y: 0
+      },
+      commandRes: {}
     })
+
+  });
+  appExpress.listen(port, () => {
+    console.log(`Example app listening on port ${port}`)
   })
+}
+
+function trackDevice() {
+  client.trackDevices()
+    .then(function (tracker) {
+      tracker.on('add', async function (device) {
+        console.log(device)
+
+        let deviceFind = await Device.findOne({ where: { device_id: device.id } });
+        if (!deviceFind) {
+          setTimeout(async () => {
+            const deviceInfo = await getDeviceInfo(device.id);
+            await Device.create({
+              name: deviceInfo.model,
+              version: deviceInfo.releaseVersion,
+              manufacturer: deviceInfo.brand,
+              cpu: deviceInfo.cpuAbi,
+              device_id: device.id, // Sử dụng `udid` làm `name` để đảm bảo tính duy nhất
+              status: 'online', // Cập nhật trạng thái thiết bị
+              lastUpdate: new Date() // Cập nhật thời gian cuối cùng
+            });
+            mainWindow.webContents.send("onDevicesState", deviceInfo);
+          }, 1000);
+
+        }
+        else {
+          deviceFind.status = 'online';
+          await deviceFind.save();
+          mainWindow.webContents.send("onDevicesState", deviceFind);
+        };
+        setTimeout(async () => {
+          const port = await checkAndInstallApks(device.id, pathRoot);
+          await checkAndInstallAtxAgent(device.id, pathRoot + "//app//atx-agent");
+          let p = listDevice.find(c => c.device_id == device.id);
+          if (!p) {
+            listDevice.push({ device_id: device.id, port });
+          }
+          else {
+            p.port = port;
+          }
+        }, 3000)
+
+      })
+      tracker.on('remove', async function (device) {
+        await Device.update({ status: "offline" }, { where: { device_id: device.id } });
+        mainWindow.webContents.send("onDevicesState", {device_id:device.id,status: 'offline'});
+        listDevice = listDevice.filter(c => c.device_id != device.id);
+      })
+      tracker.on('end', function () {
+        console.log('Tracking stopped')
+      })
+    })
+    .catch(function (err) {
+      console.error('Something went wrong:', err.stack)
+    })
 }

@@ -21,6 +21,10 @@ const Device = sequelize.define('devices', {
         type: DataTypes.STRING,
         allowNull: true,
     },
+    cpu:{
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
     device_id: {
         type: DataTypes.STRING,
         allowNull: false,
