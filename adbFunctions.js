@@ -258,9 +258,11 @@ async function inStallApp(uuid, apkPath) {
 }
 
 
-async function screenShot(port, options) {
-    console.log('Options:', options);
-
+async function screenShot(port, options = null) {
+    if (!options) {
+        let image = await takeScreenshot(port);
+        return image
+    }
     const screenshotName = options.fileName || 'screenshot.png';
     const outputFolder = options.folderOutput || '.';
     const localScreenshotPath = path.join(outputFolder, screenshotName);
@@ -279,7 +281,8 @@ async function screenShot(port, options) {
         console.log(error)
         return { success: false, message: error.message }
     }
-}
+};
+
 async function takeScreenshot(port) {
     const url = `http://127.0.0.1:${port}/jsonrpc/0`;
     const body = {
@@ -395,41 +398,6 @@ async function getAttribute(uuid, xpathQuery, name, seconds) {
         }
     }
     return { success: false, message: 'Element not found' };
-    // // Gửi lệnh dump giao diện người dùng
-    // await sendMessageShell(uuid, `uiautomator dump /sdcard/ui.xml`);
-
-    // setTimeout(async () => {
-    //     // Nhận nội dung XML trực tiếp từ shell
-    //     let result = await sendMessageShell(uuid, `cat /sdcard/ui.xml`);
-
-    //     // Loại bỏ phần dữ liệu không phải là XML
-    //     result = result.substring(result.indexOf('<?xml'));
-
-    //     // Kiểm tra xem kết quả có phải là XML hợp lệ hay không
-    //     if (result.startsWith('<?xml')) {
-    //         // Phân tích chuỗi XML thành tài liệu
-    //         const doc = new DOMParser().parseFromString(result, 'text/xml');
-    //         const nodes = xpath.select(xpathQuery, doc);
-
-    //         // Kiểm tra xem có phần tử nào khớp với XPath hay không
-    //         if (nodes.length > 0) {
-    //             const node = nodes[0];
-    //             const attributeValue = node.getAttribute(name);
-
-    //             if (attributeValue) {
-    //                 console.log(`Attribute found: ${attributeValue}`);
-    //                 return attributeValue;
-    //             } else {
-    //                 console.log('Attribute not found');
-    //             }
-    //         } else {
-    //             console.log('Element not found');
-    //         }
-    //     } else {
-    //         console.log('Invalid XML format');
-    //     }
-
-    // }, waitTime);
 }
 
 async function elementExists(port, xpathQuery, seconds = 10) {
@@ -498,7 +466,7 @@ async function isInStallApp(uuid, packageName) {
 
 }
 async function toggleAirplaneMode(uuid) {
-    let res = await sendMessageShell(uuid, 'shell settings get global airplane_mode_on');
+    let res = await client.shell(uuid, 'shell settings get global airplane_mode_on');
     res = res.data;
 
     // Kiểm tra xem phản hồi có chứa trạng thái chế độ máy bay không
@@ -512,12 +480,12 @@ async function toggleAirplaneMode(uuid) {
             : 'shell settings put global airplane_mode_on 1'; // Bật chế độ máy bay
 
         // Gửi lệnh bật/tắt chế độ máy bay qua WebSocket
-        await sendMessageShell(uuid, command);
+        await client.shell(uuid, command);
     }
 
 }
 async function toggleWifi(uuid) {
-    let res = await sendMessageShell(uuid, 'shell settings get global wifi_on');
+    let res = await client.shell(uuid, 'shell settings get global wifi_on');
     res = res.data;
 
     console.log("res => ", res);
@@ -533,13 +501,13 @@ async function toggleWifi(uuid) {
             : 'shell svc wifi enable';  // Lệnh bật Wi-Fi
 
         // Gửi lệnh bật/tắt Wi-Fi qua WebSocket
-        await sendMessageShell(uuid, command);
+        await client.shell(uuid, command);
 
     }
 
 }
 async function toggleData(uuid) {
-    let res = await sendMessageShell(uuid, 'shell settings get global mobile_data');
+    let res = await client.shell(uuid, 'shell settings get global mobile_data');
 
     res = res.data;
 
@@ -556,14 +524,14 @@ async function toggleData(uuid) {
             const command = isDataEnabled
                 ? 'shell svc data disable'  // Tắt Mobile Data
                 : 'shell svc data enable';  // Bật Mobile Data
-            await sendMessageShell(uuid, command);
+            await client.shell(uuid, command);
 
         }
     }
 }
 async function toggleLocation(uuid) {
     // Gửi lệnh kiểm tra trạng thái Location qua WebSocket
-    let res = await sendMessageShell(uuid, 'settings get secure location_mode');
+    let res = await client.shell(uuid, 'settings get secure location_mode');
 
     res = res.data;
 
@@ -575,7 +543,7 @@ async function toggleLocation(uuid) {
             ? 'shell settings put secure location_mode 0'
             : 'shell settings put secure location_mode 1';
 
-        await sendMessageShell(uuid, command);
+        await client.shell(uuid, command);
     }
 }
 
@@ -584,21 +552,11 @@ async function toggleService(uuid, service) {
     switch (service) {
         case 'airplane':
             toggleAirplaneMode(uuid);
-        case 'airplane':
-            toggleAirplaneMode(uuid);
-            break;
         case 'wifi':
             toggleWifi(uuid);
-        case 'wifi':
-            toggleWifi(uuid);
-            break;
-        case 'network':
-            toggleData(uuid);
         case 'network':
             toggleData(uuid);
             break;
-        case 'location':
-            toggleLocation(uuid);
         case 'location':
             toggleLocation(uuid);
             break;
@@ -945,7 +903,7 @@ module.exports = {
     // deviceManager,
     // getDevices,
     // deleteDevices,
-    //adbShell,
+    adbShell,
     generate2FA,
     elementExists,
     getAttribute,

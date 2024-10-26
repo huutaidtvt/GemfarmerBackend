@@ -30,10 +30,10 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
 const { startScrcpy, stopScrcpy } = require('./scrcpy');
 const { checkAndInstallApks, checkAndInstallAtxAgent, getDeviceInfo } = require('./checkAppStart')
-const { pressBack, pressHome, pressMenu, deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeScroll, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, stopApp, startApp, generate2FA, adbShell, imapReadMail, actionFile } = require('./adbFunctions')
+const { pressBack, pressHome, pressMenu, deviceActions, touch, getAttribute, elementExists, typeText, screenShot, pressKey, swipeScroll, transferFile, toggleService, isInStallApp, unInStallApp, inStallApp, stopApp, startApp, generate2FA, adbShell, imapReadMail, actionFile } = require('./adbFunctions');
+const { handlerImageSearch } = require('./handelerImageSearch');
 var listDevice = [];
 let isUpdate = false;
 //startScrcpy();
@@ -134,10 +134,6 @@ async function createWindow() {
   //   let { page, limit } = data;
   //   return listApp(page, limit);
   // });
-  ipcMain.handle("reloadData", async (event, data) => {
-   let devices=await client.listDevices();
-   
-  })
   ipcMain.handle("sendData", async (event, data) => {
     let device_id = data.deviceId;
     console.log(data);
@@ -264,10 +260,11 @@ async function createWindow() {
           return await transferFile(device_id, data.data.action, data.data.localFilePath, data.data.remoteFilePath);
 
         }
-
+        case "imageSearch": {
+          return handlerImageSearch(port, data.data, pathRoot);
+        };
         case "screenShot": {
           return await screenShot(port, data.data);
-
         }
 
       }
@@ -534,7 +531,10 @@ async function createWindow() {
     console.log(data);
     openAboutWindow(data.deviceId);
   })
-
+  ipcMain.handle("getLocation", (event, data) => {
+    const { appVersion } = require('./defineLocation');
+    return appVersion;
+  })
   ipcMain.handle("initLaucher", async () => {
     {
       await sequelize.sync();
@@ -560,7 +560,14 @@ async function createWindow() {
     }
   });
   ipcMain.handle('getDeviceList', async (event, data) => {
+    let devices = await client.listDevices();
+    const idDevices = devices.map(c => c.id);
+    console.log(idDevices)
+    if (idDevices.length > 0) {
+      Device.update({ status: "offline" }, { where: { device_id: { [Op.in]: idDevices } } })
+    }
     let result = await sequelize.query(`select d.*,g.name group_name from devices d left join device_groups g on d.device_group_id=g.id`, { raw: true });
+    console.log(result[0])
     return { success: true, message: "success", data: result[0] };
   })
 }
@@ -782,7 +789,7 @@ function trackDevice() {
       })
       tracker.on('remove', async function (device) {
         await Device.update({ status: "offline" }, { where: { device_id: device.id } });
-        mainWindow.webContents.send("onDevicesState", {device_id:device.id,status: 'offline'});
+        mainWindow.webContents.send("onDevicesState", { device_id: device.id, status: 'offline' });
         listDevice = listDevice.filter(c => c.device_id != device.id);
       })
       tracker.on('end', function () {

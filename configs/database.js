@@ -4,7 +4,7 @@ const pathRoot = osPaths.home() + "\\.gemFamer";
 // Tạo kết nối với SQLite
 const sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage:  '.\\db.db',
+    storage:  pathRoot+'\\db.db',
     username: "gemlogin",
     password: "dKlM@4r%",
    // logging: false

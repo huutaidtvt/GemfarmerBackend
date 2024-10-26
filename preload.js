@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateProxyDevice: (data) => ipcRenderer.invoke('updateProxyDevice', data),
   deleteDevice: (data) => ipcRenderer.invoke('deleteDevice', data),
   crudProxy: (data) => ipcRenderer.invoke('crudProxy', data),
+  getLocation: (data) => ipcRenderer.invoke('getLocation', data),
 
   onUpdate: (cb) => {
     ipcRenderer.on('onUpdate', (event, data) => cb(data));
